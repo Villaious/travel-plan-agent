@@ -1,0 +1,99 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>旅游规划 Agent</title>
+    <link rel="stylesheet" href="/app/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="planner">
+        <header class="topbar">
+          <div>
+            <h1>旅游规划 Agent</h1>
+            <p id="summary">输入旅行条件后生成完整行程。</p><div id="configStatus" class="config-status">正在读取服务配置...</div>
+          </div>
+          <div class="actions">
+            <button id="exportPdf" type="button" title="导出 PDF">PDF</button>
+            <button id="exportPng" type="button" title="导出路线图片">SVG</button>
+          </div>
+        </header>
+
+        <form id="planForm" class="controls">
+          <label>
+            目的地
+            <select id="destination">
+              <option>上海</option>
+              <option>北京</option>
+            </select>
+          </label>
+          <label>
+            出发日期
+            <input id="startDate" type="date" required />
+          </label>
+          <label>
+            天数
+            <input id="days" type="number" min="1" max="5" value="2" />
+          </label>
+          <label>
+            人数
+            <input id="people" type="number" min="1" max="8" value="2" />
+          </label>
+          <label>
+            预算档位
+            <select id="budgetLevel">
+              <option>经济</option>
+              <option selected>舒适</option>
+              <option>品质</option>
+            </select>
+          </label>
+          <fieldset class="preferences">
+            <legend>偏好</legend>
+            <label><input type="checkbox" value="文化" checked />文化</label>
+            <label><input type="checkbox" value="美食" checked />美食</label>
+            <label><input type="checkbox" value="城市漫步" checked />城市漫步</label>
+            <label><input type="checkbox" value="自然" />自然</label>
+            <label><input type="checkbox" value="亲子" />亲子</label>
+            <label><input type="checkbox" value="摄影" />摄影</label>
+          </fieldset>
+          <button class="primary" type="submit">生成行程</button>
+        </form>
+
+        <section class="budget" aria-label="预算明细">
+          <h2>预算明细</h2>
+          <div class="budget-grid">
+            <span>门票</span><strong id="ticketCost">¥0</strong>
+            <span>酒店</span><strong id="hotelCost">¥0</strong>
+            <span>餐饮</span><strong id="foodCost">¥0</strong>
+            <span>交通</span><strong id="transportCost">¥0</strong>
+            <span>合计</span><strong id="totalCost">¥0</strong>
+          </div>
+        </section>
+
+        <section class="agent-flow" aria-label="多Agent协作"><h2>多Agent协作</h2><div id="agentFlow"></div></section>
+
+        <section id="itinerary" class="itinerary" aria-label="行程编辑"></section>
+      </section>
+
+      <section class="map-panel">
+        <div class="map-head">
+          <h2>地图路线</h2>
+          <span id="routeDistance">0 km</span>
+        </div>
+        <svg id="map" viewBox="0 0 720 520" role="img" aria-label="行程地图"></svg>
+        <section class="catalog">
+          <h2>可添加景点</h2>
+          <div id="catalog"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app/script.js"></script>
+  </body>
+</html>
+
+
+
+
+
