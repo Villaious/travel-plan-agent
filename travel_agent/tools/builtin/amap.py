@@ -149,6 +149,7 @@ class AmapRoutePlanningTool(BaseTool):
             duration = int(float(first.get("duration") or 0))
             segments = first.get("segments", [])
             instruction = "；".join(self._segment_text(item) for item in segments[:5] if item)
+            polyline = self._transit_polyline(segments)
         else:
             paths = route.get("paths", [])
             first = paths[0] if paths else {}
@@ -156,6 +157,7 @@ class AmapRoutePlanningTool(BaseTool):
             duration = int(float(first.get("duration") or 0))
             steps = first.get("steps", [])
             instruction = "；".join(step.get("instruction", "") for step in steps[:5] if step.get("instruction"))
+            polyline = self._steps_polyline(steps)
         return {
             "route_type": route_type,
             "source": "amap",
@@ -164,8 +166,45 @@ class AmapRoutePlanningTool(BaseTool):
             "duration_seconds": duration,
             "duration_minutes": round(duration / 60),
             "description": instruction or "高德地图已返回路线。",
+            "polyline": polyline,
         }
 
+
+    def _steps_polyline(self, steps: list[dict[str, Any]]) -> list[list[float]]:
+        points: list[list[float]] = []
+        for step in steps:
+            points.extend(self._parse_polyline(step.get("polyline", "")))
+        return self._dedupe_points(points)
+
+    def _transit_polyline(self, segments: list[dict[str, Any]]) -> list[list[float]]:
+        points: list[list[float]] = []
+        for segment in segments:
+            walking = segment.get("walking", {})
+            for step in walking.get("steps", []) or []:
+                points.extend(self._parse_polyline(step.get("polyline", "")))
+            buslines = segment.get("bus", {}).get("buslines", []) or []
+            for busline in buslines:
+                points.extend(self._parse_polyline(busline.get("polyline", "")))
+        return self._dedupe_points(points)
+
+    def _parse_polyline(self, polyline: str) -> list[list[float]]:
+        points: list[list[float]] = []
+        for raw_point in str(polyline or "").split(";"):
+            if "," not in raw_point:
+                continue
+            lng_text, lat_text = raw_point.split(",", 1)
+            try:
+                points.append([float(lng_text), float(lat_text)])
+            except ValueError:
+                continue
+        return points
+
+    def _dedupe_points(self, points: list[list[float]]) -> list[list[float]]:
+        output: list[list[float]] = []
+        for point in points:
+            if not output or output[-1] != point:
+                output.append(point)
+        return output
     def _segment_text(self, segment: dict[str, Any]) -> str:
         bus = segment.get("bus", {})
         walking = segment.get("walking", {})
@@ -175,3 +214,4 @@ class AmapRoutePlanningTool(BaseTool):
         if walking:
             return "步行换乘"
         return "换乘"
+

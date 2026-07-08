@@ -1,37 +1,23 @@
-﻿# 环境变量
-.env
-.env.local
-.env.*.local
-
-# 虚拟环境
-venv/
-.venv/
-env/
-
-# Python 缓存
+﻿.env
+.env.*
+!.env.example
 __pycache__/
+.pytest_cache/
 *.py[cod]
 *$py.class
-*.so
-.pytest_cache/
-
-# IDE
+.pycache_temp/
+pytest-cache-files-*/
+.venv/
+venv/
+.envrc
+data/
 .idea/
 .vscode/
-*.swp
-*.swo
-
-# 构建产物
-*.egg-info/
-dist/
-build/
-
-# 数据库迁移（如果自动生成）
-# alembic/
-
-# 操作系统
 .DS_Store
 Thumbs.db
-
-# Docker
-.docker/
+*.log
+*.tmp
+/dist/
+/build/
+node_modules/
+/docs/

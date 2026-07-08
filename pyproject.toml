@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "travel-plan-agent"
 version = "0.2.0"
 description = "A FastAPI-based multi-agent travel planning app."

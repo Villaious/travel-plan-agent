@@ -132,6 +132,8 @@ def test_health_returns_config_status():
     assert response.status_code == 200
     data = response.json()["data"]
     assert "amap_api_key_configured" in data
+    assert "amap_js_api_key_configured" in data
+    assert "amap_js_mode" in data
     assert "llm_api_key_configured" in data
     assert data["amap_mode"] in {"api", "local_fallback"}
     assert data["llm_mode"] in {"api", "rule_fallback", "disabled"}
@@ -170,4 +172,17 @@ def test_trip_edit_and_export_endpoints():
     image_response = client.post("/api/export/image", json={"plan": edited})
     assert image_response.status_code == 200
     assert "image/svg+xml" in image_response.headers["content-type"]
+
+def test_amap_js_config_endpoint_returns_frontend_map_settings():
+    client = TestClient(app)
+    response = client.get("/api/map/js-config")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    data = payload["data"]
+    assert "enabled" in data
+    assert "key" in data
+    assert "expose_security" in data
+
 

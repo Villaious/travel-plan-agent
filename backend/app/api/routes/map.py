@@ -2,10 +2,16 @@
 
 from fastapi import APIRouter, HTTPException
 
-from backend.app.models.schemas import ApiResponse, RouteRequest
+from backend.app.models.schemas import AmapJsConfigModel, ApiResponse, RouteRequest
+from backend.app.services.config_service import get_amap_js_config
 from backend.app.services.map_service import get_map_service
 
 router = APIRouter(prefix="/map", tags=["地图"])
+
+
+@router.get("/js-config", response_model=ApiResponse[AmapJsConfigModel], summary="获取高德Web端JS地图配置")
+def js_config() -> ApiResponse[AmapJsConfigModel]:
+    return ApiResponse(success=True, message="地图JS配置读取成功", data=get_amap_js_config())
 
 
 @router.post("/route-summary", response_model=ApiResponse[dict], summary="计算路线摘要")

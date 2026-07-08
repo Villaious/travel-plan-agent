@@ -48,6 +48,14 @@
               <option>品质</option>
             </select>
           </label>
+          <label>
+            交通方式
+            <select id="transportation">
+              <option selected>公共交通</option>
+              <option>驾车</option>
+              <option>步行</option>
+            </select>
+          </label>
           <fieldset class="preferences">
             <legend>偏好</legend>
             <label><input type="checkbox" value="文化" checked />文化</label>
@@ -59,6 +67,9 @@
           </fieldset>
           <button class="primary" type="submit">生成行程</button>
         </form>
+
+        <div id="progressPanel" class="progress-panel" aria-live="polite"></div>
+        <div id="errorPanel" class="error-panel" role="alert"></div>
 
         <section class="budget" aria-label="预算明细">
           <h2>预算明细</h2>
@@ -79,9 +90,9 @@
       <section class="map-panel">
         <div class="map-head">
           <h2>地图路线</h2>
-          <span id="routeDistance">0 km</span>
+          <span id="routeDistance">0 km</span><div id="routeLegend" class="route-legend" aria-label="路线图例"><span><i class="legend-transit"></i>公共交通</span><span><i class="legend-driving"></i>驾车</span><span><i class="legend-walking"></i>步行</span></div>
         </div>
-        <svg id="map" viewBox="0 0 720 520" role="img" aria-label="行程地图"></svg>
+        <div id="map" class="map-canvas" role="img" aria-label="行程地图"><svg id="fallbackMap" viewBox="0 0 720 520"></svg></div>
         <section class="catalog">
           <h2>可添加景点</h2>
           <div id="catalog"></div>
@@ -92,6 +103,12 @@
     <script src="/app/script.js"></script>
   </body>
 </html>
+
+
+
+
+
+
 
 
 

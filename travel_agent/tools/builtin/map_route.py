@@ -1,4 +1,4 @@
-from math import atan2, cos, radians, sin, sqrt
+﻿from math import atan2, cos, radians, sin, sqrt
 from typing import Any
 
 from travel_agent.tools.base import BaseTool
@@ -51,3 +51,4 @@ class MapRouteTool(BaseTool):
         dlng = radians(lng2 - lng1)
         a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlng / 2) ** 2
         return radius * 2 * atan2(sqrt(a), sqrt(1 - a))
+

@@ -24,9 +24,11 @@ class TripPlannerService:
             preferences=request.preferences,
             budget_level=request.budget_level,
             people=request.people,
+            transportation=request.transportation,
         )
 
 
 @lru_cache(maxsize=1)
 def get_trip_planner_service() -> TripPlannerService:
     return TripPlannerService()
+

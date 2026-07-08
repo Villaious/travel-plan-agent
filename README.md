@@ -2,6 +2,10 @@
 
 这是一个基于 FastAPI + 多 Agent 的旅游规划应用。系统把旅行规划拆成多个专家角色，由总控 Agent 协调，并额外加入“主题检查 Agent”确保每个子 Agent 的输出没有脱离用户最初的旅行规划话题。
 
+
+## 运行截图
+
+![旅游规划 Agent 运行截图](docs/assets/runtime-screenshot.png)
 ## 项目结构
 
 ```text
@@ -23,7 +27,8 @@ travel-plan-agent/
 ## 环境需求
 
 - Python 3.10 或更高版本。
-- 可选：高德地图 Web 服务 Key；不填写时使用本地示例数据。
+- 可选：高德地图 Web 服务 Key；不填写时后端使用本地示例数据。
+- 可选：高德地图 Web端 JS API Key 与安全密钥；不填写时前端使用备用 SVG 地图。
 - 可选：OpenAI 兼容 LLM API Key；不填写时使用规则生成总结和建议。
 - 如需调用真实高德或 LLM 服务，需要可访问外网的运行环境。
 
@@ -49,6 +54,13 @@ pip install -r requirements.txt
 
 ```env
 AMAP_API_KEY=你的高德地图Web服务Key
+AMAP_TIMEOUT=10
+
+AMAP_JS_API_KEY=你的高德地图Web端JS API Key
+AMAP_JS_SECURITY_CODE=你的高德地图Web端JS安全密钥
+AMAP_JS_EXPOSE_SECURITY=true
+AMAP_JS_SERVICE_HOST=
+
 LLM_API_KEY=你的LLM_API_KEY
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-4o-mini
@@ -57,10 +69,16 @@ TRAVEL_AGENT_USE_LLM=true
 
 说明：
 
-- `AMAP_API_KEY`：用于高德 Web 服务 API，景点/酒店搜索走 POI 关键字搜索，天气走天气查询。
+- `AMAP_API_KEY`：用于高德 Web 服务 API，景点/酒店搜索走 POI 关键字搜索，天气和后端路线规划也会使用它。
+- `AMAP_JS_API_KEY`：用于前端加载高德 Web端 JavaScript API 2.0，让页面显示真实地图。
+- `AMAP_JS_SECURITY_CODE`：高德 Web端 JS API 的安全密钥。高德说明中提到，2021-12-02 之后创建的 Key 需要配合安全密钥使用。
+- `AMAP_JS_EXPOSE_SECURITY`：开发演示可设为 `true`，前端会按高德“明文设置”方式使用 `securityJsCode`；生产环境建议设为 `false` 并配置 `AMAP_JS_SERVICE_HOST`。
+- `AMAP_JS_SERVICE_HOST`：生产环境代理服务地址，用于高德推荐的代理转发方式，格式示例为 `https://你的域名/_AMapService`。
 - `LLM_BASE_URL`：使用 OpenAI 兼容接口，默认是 OpenAI；如果使用 DeepSeek、ModelScope、阿里云百炼等，把这里换成对应的 `/v1` 地址。
 - `LLM_MODEL`：填写你要调用的模型名。
-- 未填写 Key 时，系统会自动回退到本地示例数据，方便离线演示。
+- 未填写后端高德 Key 时，系统会自动回退到本地示例数据；未填写前端 JS Key 时，页面会回退到备用 SVG 地图。
+
+高德 Web端 JS API 安全配置参考官方文档：https://lbs.amap.com/api/javascript-api-v2/guide/abc/jscode
 
 ## 运行方式
 
@@ -100,7 +118,7 @@ http://127.0.0.1:8000/docs
 http://127.0.0.1:8000/api/health
 ```
 
-健康检查会返回高德 Key、LLM Key、LLM 启用状态、当前回退模式、LLM Base URL 和模型名。
+健康检查会返回高德 Web 服务 Key、Web端 JS Key、安全密钥配置状态、LLM Key、LLM 启用状态、当前回退模式、LLM Base URL 和模型名。
 
 生成行程接口：
 
@@ -113,6 +131,7 @@ POST http://127.0.0.1:8000/api/trip/plan
 
 ```text
 GET  http://127.0.0.1:8000/api/poi/search?keywords=博物馆&city=上海
+GET  http://127.0.0.1:8000/api/map/js-config
 POST http://127.0.0.1:8000/api/map/route-summary
 POST http://127.0.0.1:8000/api/trip/edit
 POST http://127.0.0.1:8000/api/export/pdf
@@ -183,7 +202,7 @@ python -m pytest -q
 ## 功能
 
 - 智能行程规划：根据目的地、日期、偏好、预算档位生成每日景点、餐饮、酒店安排。
-- 地图可视化：在页面上标注景点、酒店、餐厅，并绘制游览路线。
+- 地图可视化：配置高德 Web端 JS API 后显示真实高德地图，标注景点、酒店、餐厅并绘制游览路线；未配置时使用备用 SVG 地图。
 - 真实路线规划：配置高德 Key 后可调用高德步行、驾车、公交路线 API；无 Key 时自动回退本地估算。
 - 预算明细：自动统计门票、酒店、餐饮、交通费用和总价。
 - 餐饮推荐：独立餐饮 Agent 负责餐厅搜索、菜系匹配和餐饮预算估算。
@@ -216,6 +235,10 @@ python -m pytest -q
 - 多城市扩展：增加更多城市的本地回退数据，并支持跨城市、多目的地旅行规划。
 - Agent 评估机制：记录每个 Agent 的耗时、工具调用次数、主题检查结果和失败原因，用于分析规划质量。
 - 安全与限流：增加 API 调用频率限制、Key 使用保护和请求日志脱敏。
+- 高德 JS API 代理：补充后端 `_AMapService` 代理示例，生产环境避免在前端明文暴露安全密钥。
 - 部署支持：补充 Dockerfile、启动脚本和生产环境配置示例。
+
+
+
 
 

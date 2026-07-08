@@ -293,16 +293,45 @@ input {
 }
 
 #map {
+  position: relative;
   width: 100%;
   min-height: 360px;
   height: calc(100vh - 230px);
   border: 1px solid var(--line);
   border-radius: 8px;
+  overflow: hidden;
   background:
     linear-gradient(90deg, rgba(8, 127, 140, 0.08) 1px, transparent 1px),
     linear-gradient(rgba(8, 127, 140, 0.08) 1px, transparent 1px),
     #eef6f4;
   background-size: 48px 48px;
+}
+
+#fallbackMap {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#map.amap-ready #fallbackMap {
+  display: none;
+}
+
+.amap-marker-label {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 7px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 8px rgba(32, 36, 42, 0.12);
+}
+
+.route-casing {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.86);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .route {
@@ -318,12 +347,12 @@ input {
   fill: var(--ink);
   paint-order: stroke;
   stroke: white;
-  stroke-width: 4px;
+  stroke-width: 3px;
 }
 
 .pin {
   stroke: white;
-  stroke-width: 3;
+  stroke-width: 4;
 }
 
 .catalog {
@@ -452,3 +481,33 @@ input {
 .agent-io span {
   display: block;
 }
+
+
+
+.route-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.route-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.route-legend i {
+  width: 18px;
+  height: 4px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.legend-transit { background: #2f5fd0; }
+.legend-driving { background: #d84e2f; }
+.legend-walking { background: #2f8f5b; }
+

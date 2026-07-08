@@ -49,13 +49,14 @@ class PlannerAgent(Agent):
             preferences=request.get("preferences", []),
             budget_level=request.get("budget_level", "舒适"),
         )
+        itinerary["transportation"] = request.get("transportation", "公共交通")
         itinerary["weather_info"] = weather["weather"]
         itinerary["overall_suggestions"] = self._build_suggestions(weather["weather"])
-        budget = self.tools.get("budget").run(itinerary=itinerary, people=request.get("people", 1))
+        budget = self.tools.get("budget").run(itinerary=itinerary, people=request.get("people", 1), transport_per_day=self._transport_cost_per_day(request.get("transportation", "公共交通")))
         map_payload = self.tools.get("map_route").run(itinerary=itinerary, center=planner_data["center"])
         self._enhance_with_llm(itinerary, budget, attractions, hotels)
         export_payload = self.tools.get("export_payload").run(itinerary=itinerary, budget=budget, map=map_payload)
-        result = {**export_payload, "summary": itinerary["summary"]}
+        result = {**export_payload, "summary": itinerary["summary"], "transportation": request.get("transportation", "公共交通")}
         self.remember_answer(result["summary"])
         return result
 
@@ -74,6 +75,13 @@ class PlannerAgent(Agent):
             f"酒店数={len(hotels.get('hotels', []))}。"
         )
 
+
+    def _transport_cost_per_day(self, transportation: str) -> int:
+        if any(keyword in transportation for keyword in ["驾车", "自驾", "开车", "打车", "出租"]):
+            return 120
+        if any(keyword in transportation for keyword in ["步行", "徒步"]):
+            return 20
+        return 50
     def _enhance_with_llm(
         self,
         itinerary: dict[str, Any],
@@ -128,4 +136,5 @@ class PlannerAgent(Agent):
         if rainy_days:
             return f"{ '、'.join(rainy_days) }可能有雨，建议保留室内景点和雨具。"
         return "天气整体适合出行，建议把户外景点安排在上午或傍晚。"
+
 

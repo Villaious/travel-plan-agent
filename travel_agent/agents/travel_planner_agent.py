@@ -37,6 +37,7 @@ class TravelPlannerAgent(Agent):
         preferences: list[str] | None = None,
         budget_level: str = "舒适",
         people: int = 1,
+        transportation: str = "公共交通",
     ) -> dict[str, Any]:
         request = {
             "destination": destination,
@@ -45,10 +46,11 @@ class TravelPlannerAgent(Agent):
             "preferences": preferences or [],
             "budget_level": budget_level,
             "people": max(1, int(people)),
+            "transportation": transportation,
         }
         memory_before = self.memory.suggest()
         self.remember_user_input(
-            f"目的地={destination}; 日期={start_date}; 天数={days}; 偏好={preferences}; 预算={budget_level}"
+            f"目的地={destination}; 日期={start_date}; 天数={days}; 偏好={preferences}; 预算={budget_level}; 交通={transportation}"
         )
 
         attraction_input = f"搜索{destination}景点，偏好={request['preferences']}"
@@ -95,3 +97,6 @@ class TravelPlannerAgent(Agent):
         if not report["on_topic"]:
             raise AgentError(f"{agent_name} 输出未通过主题检查: {report['reason']}")
         return report
+
+
+
