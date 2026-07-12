@@ -221,12 +221,6 @@ POST http://127.0.0.1:8000/api/export/image
 }
 ```
 
-也可以运行命令行示例：
-
-```bash
-python examples.py
-```
-
 运行测试：
 
 ```bash
