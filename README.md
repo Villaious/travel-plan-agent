@@ -229,15 +229,16 @@ python -m pytest -q
 
 ## 多 Agent 协作流程
 
-1. `AttractionSearchAgent`：根据目的地和偏好筛选景点，优先检索 Qdrant RAG 景点知识库，再调用高德 POI。
-2. `ScenicSearchAgent`：使用 SerpApi 搜索景区资料，整合景点优点和适合人群，并写入 Qdrant RAG。
-3. `WeatherQueryAgent`：查询旅行日期内的天气，优先调用高德天气。
-4. `HotelAgent`：根据预算档位推荐酒店，优先调用高德 POI。
-5. `RestaurantAgent`：根据目的地、偏好和预算档位推荐餐厅，并估算餐饮预算。
-6. `PlannerAgent`：整合景点、天气、酒店、餐饮、用户需求，生成完整行程、预算和地图数据；配置 LLM 后会增强总结和建议。
-7. `TravelMemory`：保存历史目的地、偏好和预算档位，为后续规划提供个性化参考。
-8. `TopicGuardAgent`：检查每个 Agent 的输出是否仍围绕原始旅行规划主题。
-9. `TravelPlannerAgent`：总控协调器，串联所有 Agent，并返回 `collaboration_trace`、`topic_checks` 与记忆信息。
+1. `TravelPlannerAgent`：总控协调器接收旅行需求，并读取 `TravelMemory` 中的历史偏好。
+2. `AttractionSearchAgent`：根据目的地和偏好筛选景点，优先检索 Qdrant RAG 景点知识库，再调用高德 POI。
+3. `ScenicSearchAgent`：使用 SerpApi 搜索景区资料，整合景点优点和适合人群，并写入 Qdrant RAG。
+4. `WeatherQueryAgent`：查询旅行日期内的天气，优先调用高德天气。
+5. `HotelAgent`：根据预算档位推荐酒店，优先调用高德 POI。
+6. `RestaurantAgent`：根据目的地、偏好和预算档位推荐餐厅，并估算餐饮预算。
+7. `PlannerAgent`：整合景点、天气、酒店、餐饮和用户需求，生成完整行程、预算与地图数据；配置 LLM 后会增强总结和建议。
+8. `TopicGuardAgent`：在每个专业 Agent 输出后立即检查主题一致性；检查不通过时终止本次规划。
+9. `TravelMemory`：规划完成后保存本次目的地、偏好和预算档位，为后续推荐提供个性化参考。
+10. `TravelPlannerAgent`：汇总并返回完整计划、`collaboration_trace`、`topic_checks` 与记忆信息。
 
 ## 功能
 
