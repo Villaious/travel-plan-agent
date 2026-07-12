@@ -3,6 +3,7 @@
 from backend.app.main import app
 from travel_agent import TravelPlannerAgent
 from travel_agent.agents.restaurant_agent import RestaurantAgent
+from travel_agent.agents.scenic_search_agent import ScenicSearchAgent
 from travel_agent.agents.topic_guard_agent import TopicGuardAgent
 from travel_agent.core.memory import TravelMemory
 
@@ -24,11 +25,29 @@ def test_travel_planner_generates_complete_plan():
     assert plan["budget"]["total"] > 0
     assert len(plan["map"]["markers"]) > 0
     assert plan["title"] == "上海旅行计划"
-    assert len(plan["collaboration_trace"]) == 7
-    assert plan["collaboration_trace"][3]["agent"] == "餐饮推荐专家"
+    assert len(plan["collaboration_trace"]) == 8
+    assert plan["collaboration_trace"][1]["agent"] == "景区搜索专家"
+    assert plan["collaboration_trace"][4]["agent"] == "餐饮推荐专家"
+    assert plan["scenic_insights"]
     assert "memory_suggestions" in plan
     assert all(item["on_topic"] for item in plan["topic_checks"])
 
+
+
+
+def test_scenic_search_agent_summarizes_and_falls_back():
+    agent = ScenicSearchAgent()
+    result = agent.run(
+        "上海",
+        [{"name": "外滩", "type": "城市漫步", "lat": 31.24, "lng": 121.49, "tags": ["摄影", "城市漫步"], "reason": "经典城市景观。"}],
+        ["摄影"],
+        limit=1,
+    )
+
+    assert result["agent"] == "景区搜索专家"
+    assert result["scenic_insights"]
+    assert result["scenic_insights"][0]["advantages"]
+    assert result["scenic_insights"][0]["suitable_for"]
 
 def test_restaurant_agent_returns_restaurants():
     agent = RestaurantAgent()
@@ -135,6 +154,10 @@ def test_health_returns_config_status():
     assert "amap_js_api_key_configured" in data
     assert "amap_js_mode" in data
     assert "llm_api_key_configured" in data
+    assert "qdrant_configured" in data
+    assert "rag_mode" in data
+    assert "serpapi_configured" in data
+    assert "scenic_search_mode" in data
     assert data["amap_mode"] in {"api", "local_fallback"}
     assert data["llm_mode"] in {"api", "rule_fallback", "disabled"}
 
@@ -184,5 +207,16 @@ def test_amap_js_config_endpoint_returns_frontend_map_settings():
     assert "enabled" in data
     assert "key" in data
     assert "expose_security" in data
+
+def test_qdrant_rag_tool_disabled_without_config(monkeypatch):
+    from travel_agent.tools.builtin.attraction_rag import QdrantAttractionRagTool
+
+    monkeypatch.setenv("QDRANT_URL", "")
+    monkeypatch.setenv("QDRANT_API_KEY", "")
+    tool = QdrantAttractionRagTool()
+
+    assert tool.enabled is False
+    assert tool.run(destination="上海", preferences=["文化"], limit=2) == []
+
 
 

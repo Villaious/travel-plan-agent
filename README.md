@@ -1,11 +1,24 @@
-﻿# 旅游规划 Agent
+# 旅游规划 Agent
 
 这是一个基于 FastAPI + 多 Agent 的旅游规划应用。系统把旅行规划拆成多个专家角色，由总控 Agent 协调，并额外加入“主题检查 Agent”确保每个子 Agent 的输出没有脱离用户最初的旅行规划话题。
 
 
 ## 运行截图
 
+### 旅游规划主界面
+
 ![旅游规划 Agent 运行截图](docs/assets/runtime-screenshot.png)
+
+### 多 Agent 协作过程
+
+![景点搜索专家与其他 Agent 协作运行截图](docs/assets/agent-run.png)
+
+### 行程规划结果
+
+![旅游行程规划结果截图](docs/assets/travel-plans.png)
+
+> 提示：生成行程前，请先访问 `/api/health` 检查高德地图、LLM、Qdrant 和 SerpApi 的配置状态。生成完成后，可在 Agent 协作过程和接口返回结果中查看景区搜索来源；`source` 为 `serpapi` 表示已使用真实搜索，`rag_added` 大于 `0` 表示景点知识已成功写入 Qdrant。
+
 ## 项目结构
 
 ```text
@@ -30,6 +43,8 @@ travel-plan-agent/
 - 可选：高德地图 Web 服务 Key；不填写时后端使用本地示例数据。
 - 可选：高德地图 Web端 JS API Key 与安全密钥；不填写时前端使用备用 SVG 地图。
 - 可选：OpenAI 兼容 LLM API Key；不填写时使用规则生成总结和建议。
+- 可选：Qdrant 云服务 URL 与 API Key；不填写时跳过 RAG 景点知识库。
+- 可选：SerpApi API Key；不填写时景区搜索 Agent 使用规则总结回退。
 - 如需调用真实高德或 LLM 服务，需要可访问外网的运行环境。
 
 ## 依赖库
@@ -61,6 +76,16 @@ AMAP_JS_SECURITY_CODE=你的高德地图Web端JS安全密钥
 AMAP_JS_EXPOSE_SECURITY=true
 AMAP_JS_SERVICE_HOST=
 
+# Qdrant RAG 景点知识库
+QDRANT_URL=https://your-cluster.qdrant.tech:6333
+QDRANT_API_KEY=your_qdrant_api_key_here
+QDRANT_COLLECTION=travel_attraction_knowledge
+QDRANT_TIMEOUT=10
+
+# SerpApi 景区搜索
+SERPAPI_API_KEY=your_serpapi_api_key_here
+SERPAPI_TIMEOUT=15
+
 LLM_API_KEY=你的LLM_API_KEY
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-4o-mini
@@ -74,11 +99,31 @@ TRAVEL_AGENT_USE_LLM=true
 - `AMAP_JS_SECURITY_CODE`：高德 Web端 JS API 的安全密钥。高德说明中提到，2021-12-02 之后创建的 Key 需要配合安全密钥使用。
 - `AMAP_JS_EXPOSE_SECURITY`：开发演示可设为 `true`，前端会按高德“明文设置”方式使用 `securityJsCode`；生产环境建议设为 `false` 并配置 `AMAP_JS_SERVICE_HOST`。
 - `AMAP_JS_SERVICE_HOST`：生产环境代理服务地址，用于高德推荐的代理转发方式，格式示例为 `https://你的域名/_AMapService`。
+- `QDRANT_URL`：Qdrant 云服务地址，例如 `https://your-cluster.qdrant.tech:6333`。
+- `QDRANT_API_KEY`：Qdrant Cloud API Key，用于写入和检索景点向量知识库。
+- `QDRANT_COLLECTION`：景点知识库 collection 名称，默认 `travel_attraction_knowledge`。
+- `SERPAPI_API_KEY`：SerpApi API Key，用于景区搜索 Agent 检索网页资料。
+- `SERPAPI_TIMEOUT`：SerpApi 请求超时时间，默认 15 秒。
 - `LLM_BASE_URL`：使用 OpenAI 兼容接口，默认是 OpenAI；如果使用 DeepSeek、ModelScope、阿里云百炼等，把这里换成对应的 `/v1` 地址。
 - `LLM_MODEL`：填写你要调用的模型名。
 - 未填写后端高德 Key 时，系统会自动回退到本地示例数据；未填写前端 JS Key 时，页面会回退到备用 SVG 地图。
 
 高德 Web端 JS API 安全配置参考官方文档：https://lbs.amap.com/api/javascript-api-v2/guide/abc/jscode
+
+### SerpApi 景区搜索 Agent
+
+`ScenicSearchAgent` 会调用 SerpApi Google Search API 搜索景区资料，将搜索摘要整合为“景点优点”和“适合人群”，再写入 Qdrant RAG 知识库。SerpApi 官方文档说明 Google Search API 端点为 `https://serpapi.com/search?engine=google`，其中 `q` 是搜索词，`location` 可指定搜索城市。
+
+未配置 `SERPAPI_API_KEY` 时，该 Agent 不会中断流程，会基于已有景点标签和理由生成规则化介绍，并在 Qdrant 可用时写入 RAG。
+
+### Qdrant RAG 景点知识库
+
+项目内置了一个小型景点知识库，包含两个目的地、每个目的地两个景点：
+
+- 上海：外滩、上海博物馆。
+- 北京：故宫博物院、天坛公园。
+
+配置 `QDRANT_URL` 和 `QDRANT_API_KEY` 后，`AttractionSearchAgent` 会优先把这些知识写入 Qdrant collection，并通过 RAG 检索与目的地、偏好最相关的景点；如果 Qdrant 未配置或调用失败，会自动回退到高德 POI 和本地数据。
 
 ## 运行方式
 
@@ -118,7 +163,7 @@ http://127.0.0.1:8000/docs
 http://127.0.0.1:8000/api/health
 ```
 
-健康检查会返回高德 Web 服务 Key、Web端 JS Key、安全密钥配置状态、LLM Key、LLM 启用状态、当前回退模式、LLM Base URL 和模型名。
+健康检查会返回高德 Web 服务 Key、Web端 JS Key、安全密钥配置状态、Qdrant 配置状态、LLM Key、LLM 启用状态、当前回退模式、LLM Base URL 和模型名。
 
 生成行程接口：
 
@@ -190,18 +235,21 @@ python -m pytest -q
 
 ## 多 Agent 协作流程
 
-1. `AttractionSearchAgent`：根据目的地和偏好筛选景点，优先调用高德 POI。
-2. `WeatherQueryAgent`：查询旅行日期内的天气，优先调用高德天气。
-3. `HotelAgent`：根据预算档位推荐酒店，优先调用高德 POI。
-4. `RestaurantAgent`：根据目的地、偏好和预算档位推荐餐厅，并估算餐饮预算。
-5. `PlannerAgent`：整合景点、天气、酒店、餐饮、用户需求，生成完整行程、预算和地图数据；配置 LLM 后会增强总结和建议。
-6. `TravelMemory`：保存历史目的地、偏好和预算档位，为后续规划提供个性化参考。
-7. `TopicGuardAgent`：检查每个 Agent 的输出是否仍围绕原始旅行规划主题。
-8. `TravelPlannerAgent`：总控协调器，串联所有 Agent，并返回 `collaboration_trace`、`topic_checks` 与记忆信息。
+1. `AttractionSearchAgent`：根据目的地和偏好筛选景点，优先检索 Qdrant RAG 景点知识库，再调用高德 POI。
+2. `ScenicSearchAgent`：使用 SerpApi 搜索景区资料，整合景点优点和适合人群，并写入 Qdrant RAG。
+3. `WeatherQueryAgent`：查询旅行日期内的天气，优先调用高德天气。
+4. `HotelAgent`：根据预算档位推荐酒店，优先调用高德 POI。
+5. `RestaurantAgent`：根据目的地、偏好和预算档位推荐餐厅，并估算餐饮预算。
+6. `PlannerAgent`：整合景点、天气、酒店、餐饮、用户需求，生成完整行程、预算和地图数据；配置 LLM 后会增强总结和建议。
+7. `TravelMemory`：保存历史目的地、偏好和预算档位，为后续规划提供个性化参考。
+8. `TopicGuardAgent`：检查每个 Agent 的输出是否仍围绕原始旅行规划主题。
+9. `TravelPlannerAgent`：总控协调器，串联所有 Agent，并返回 `collaboration_trace`、`topic_checks` 与记忆信息。
 
 ## 功能
 
 - 智能行程规划：根据目的地、日期、偏好、预算档位生成每日景点、餐饮、酒店安排。
+- RAG 景点知识库：使用 Qdrant 存储上海、北京景点知识，景点 Agent 可按目的地和偏好检索。
+- 景区搜索 Agent：使用 SerpApi 搜索景区资料，整理景点优点和适合人群，并沉淀回 RAG。
 - 地图可视化：配置高德 Web端 JS API 后显示真实高德地图，标注景点、酒店、餐厅并绘制游览路线；未配置时使用备用 SVG 地图。
 - 真实路线规划：配置高德 Key 后可调用高德步行、驾车、公交路线 API；无 Key 时自动回退本地估算。
 - 预算明细：自动统计门票、酒店、餐饮、交通费用和总价。
@@ -237,6 +285,11 @@ python -m pytest -q
 - 安全与限流：增加 API 调用频率限制、Key 使用保护和请求日志脱敏。
 - 高德 JS API 代理：补充后端 `_AMapService` 代理示例，生产环境避免在前端明文暴露安全密钥。
 - 部署支持：补充 Dockerfile、启动脚本和生产环境配置示例。
+
+
+
+
+
 
 
 

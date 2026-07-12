@@ -108,6 +108,7 @@ class ItineraryModel(FlexibleModel):
     days: list[DayPlanModel] = Field(default_factory=list, description="每日行程")
     preferences: list[str] = Field(default_factory=list, description="旅行偏好")
     transportation: str = Field(default="公共交通", description="交通方式")
+    scenic_insights: list[dict[str, Any]] = Field(default_factory=list, description="景区搜索Agent整理结果")
     summary: str = Field(default="", description="行程摘要")
     weather_info: list[WeatherModel] = Field(default_factory=list, description="天气信息")
     overall_suggestions: str = Field(default="", description="总体建议")
@@ -172,6 +173,7 @@ class TripPlanResponseModel(BaseModel):
     memory_suggestions: dict[str, Any] = Field(default_factory=dict, description="历史偏好建议")
     memory_snapshot: dict[str, Any] = Field(default_factory=dict, description="记忆快照")
     transportation: str = Field(default="公共交通", description="交通方式")
+    scenic_insights: list[dict[str, Any]] = Field(default_factory=list, description="景区搜索Agent整理结果")
 
 
 class ConfigStatusModel(BaseModel):
@@ -181,10 +183,14 @@ class ConfigStatusModel(BaseModel):
     amap_js_security_code_configured: bool = Field(default=False, description="是否配置高德Web端JS安全密钥")
     amap_js_expose_security: bool = Field(default=False, description="是否允许前端明文读取JS安全密钥")
     llm_api_key_configured: bool = Field(..., description="是否配置LLM Key")
+    qdrant_configured: bool = Field(default=False, description="是否配置Qdrant向量数据库")
+    serpapi_configured: bool = Field(default=False, description="是否配置SerpApi搜索API")
     travel_agent_use_llm: bool = Field(..., description="是否启用LLM增强")
     amap_mode: str = Field(..., description="高德数据模式：api/local_fallback")
     amap_js_mode: str = Field(default="fallback_svg", description="前端地图模式：js_api/fallback_svg")
     llm_mode: str = Field(..., description="LLM模式：api/rule_fallback/disabled")
+    rag_mode: str = Field(default="disabled", description="景点知识库模式：qdrant_rag/disabled")
+    scenic_search_mode: str = Field(default="rule_fallback", description="景区搜索模式：serpapi/rule_fallback")
     llm_base_url: str = Field(default="", description="LLM Base URL")
     llm_model: str = Field(default="", description="LLM模型")
 
@@ -197,6 +203,9 @@ class AmapJsConfigModel(BaseModel):
     message: str = Field(default="", description="配置说明")
 
 TripPlanData = TripPlanResponseModel
+
+
+
 
 
 

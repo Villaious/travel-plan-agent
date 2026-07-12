@@ -4,7 +4,7 @@ from typing import Any
 
 from travel_agent.core.agent import Agent
 from travel_agent.core.exceptions import ToolError
-from travel_agent.tools import AmapPlaceSearchTool, DestinationDataTool
+from travel_agent.tools import AmapPlaceSearchTool, DestinationDataTool, QdrantAttractionRagTool
 
 
 class AttractionSearchAgent(Agent):
@@ -33,6 +33,12 @@ class AttractionSearchAgent(Agent):
         self.remember_answer(result["message"])
         return result
 
+
+    def _search_rag(self, destination: str, preferences: list[str], limit: int) -> list[dict[str, Any]]:
+        tool = self.tools.get("qdrant_attraction_rag")
+        if not getattr(tool, "enabled", False):
+            return []
+        return tool.run(destination=destination, preferences=preferences, limit=limit)
     def _search_amap(self, destination: str, preferences: list[str], limit: int) -> list[dict[str, Any]]:
         tool = self.tools.get("amap_place_search")
         if not getattr(tool, "enabled", False):
@@ -69,3 +75,4 @@ class AttractionSearchAgent(Agent):
 
     def _preference_text(self, preferences: list[str]) -> str:
         return "、".join(preferences) if preferences else "经典旅行偏好"
+
