@@ -20,3 +20,4 @@ Thumbs.db
 /dist/
 /build/
 node_modules/
+/data/
