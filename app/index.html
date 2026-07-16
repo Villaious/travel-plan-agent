@@ -106,9 +106,35 @@
       <section class="map-panel">
         <div class="map-head">
           <h2>地图路线</h2>
-          <span id="routeDistance">0 km</span><div id="routeLegend" class="route-legend" aria-label="路线图例"><span><i class="legend-transit"></i>公共交通</span><span><i class="legend-driving"></i>驾车</span><span><i class="legend-walking"></i>步行</span></div>
+          <span id="routeDistance">0 km</span><div id="routeLegend" class="route-legend" aria-label="路线图例"><span><i class="legend-transit"></i>公共交通</span><span><i class="legend-driving"></i>驾车</span><span><i class="legend-walking"></i>步行</span><span><i class="legend-cycling"></i>共享单车</span></div>
         </div>
         <div id="map" class="map-canvas" role="img" aria-label="行程地图"><svg id="fallbackMap" viewBox="0 0 720 520"></svg></div>
+        <section class="route-advisor" aria-labelledby="routeAdvisorTitle">
+          <div class="route-advisor-head">
+            <h2 id="routeAdvisorTitle">路线规划专家</h2>
+            <span>两点交通方式比较</span>
+          </div>
+          <div class="route-advisor-controls">
+            <label>起点<select id="routeOrigin" disabled></select></label>
+            <label>终点<select id="routeDestination" disabled></select></label>
+            <label>评估侧重
+              <select id="routePriority">
+                <option value="balanced" selected>综合性价比</option>
+                <option value="time">最短时间</option>
+                <option value="cost">最低费用</option>
+              </select>
+            </label>
+            <fieldset class="route-mode-options">
+              <legend>参与比较</legend>
+              <label><input type="checkbox" value="transit" checked />公共交通</label>
+              <label><input type="checkbox" value="cycling" checked />共享单车</label>
+              <label><input type="checkbox" value="walking" checked />步行</label>
+              <label><input type="checkbox" value="driving" checked />驾车</label>
+            </fieldset>
+            <button id="compareRoutes" class="route-compare-button" type="button" disabled>比较并推荐</button>
+          </div>
+          <div id="routeAdvisorResult" class="route-advisor-result"><div class="empty-state">生成行程后可选择两个地点进行交通方式比较。</div></div>
+        </section>
         <section class="catalog">
           <h2>可添加景点</h2>
           <div id="catalog"></div>

@@ -510,6 +510,7 @@ input {
 .legend-transit { background: #2f5fd0; }
 .legend-driving { background: #d84e2f; }
 .legend-walking { background: #2f8f5b; }
+.legend-cycling { background: #8a5a00; }
 
 
 .destination-control {
@@ -622,6 +623,158 @@ input {
 
   .destination-grid {
     grid-template-columns: 1fr;
+  }
+}
+.route-advisor {
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.route-advisor-head,
+.route-option-title,
+.route-recommendation-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.route-advisor-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.route-advisor-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.route-mode-options {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.route-mode-options legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.route-mode-options label {
+  display: flex;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+}
+
+.route-mode-options input {
+  width: 16px;
+  height: 16px;
+}
+
+.route-compare-button {
+  grid-column: 1 / -1;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.route-advisor-result {
+  margin-top: 12px;
+}
+
+.route-recommendation-summary {
+  align-items: flex-start;
+  padding: 12px;
+  border-left: 4px solid var(--accent);
+  background: #eef8f7;
+}
+
+.route-recommendation-summary span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.route-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.route-option {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.route-option.recommended {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.route-option-title span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.route-option-transit .route-option-title strong { color: #2f5fd0; }
+.route-option-driving .route-option-title strong { color: #d84e2f; }
+.route-option-walking .route-option-title strong { color: #2f8f5b; }
+.route-option-cycling .route-option-title strong { color: #8a5a00; }
+
+.route-option-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.route-option-metrics span {
+  padding: 6px;
+  background: #f5f7f8;
+  color: var(--ink);
+  font-size: 12px;
+  text-align: center;
+}
+
+.route-option p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 700px) {
+  .route-advisor-controls,
+  .route-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .route-mode-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .route-recommendation-summary {
+    display: grid;
+  }
+
+  .route-recommendation-summary span {
+    text-align: left;
   }
 }
 .daily-routes-section {
@@ -829,6 +982,158 @@ input {
 
   .destination-grid {
     grid-template-columns: 1fr;
+  }
+}
+.route-advisor {
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.route-advisor-head,
+.route-option-title,
+.route-recommendation-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.route-advisor-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.route-advisor-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.route-mode-options {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.route-mode-options legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.route-mode-options label {
+  display: flex;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+}
+
+.route-mode-options input {
+  width: 16px;
+  height: 16px;
+}
+
+.route-compare-button {
+  grid-column: 1 / -1;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.route-advisor-result {
+  margin-top: 12px;
+}
+
+.route-recommendation-summary {
+  align-items: flex-start;
+  padding: 12px;
+  border-left: 4px solid var(--accent);
+  background: #eef8f7;
+}
+
+.route-recommendation-summary span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.route-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.route-option {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.route-option.recommended {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.route-option-title span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.route-option-transit .route-option-title strong { color: #2f5fd0; }
+.route-option-driving .route-option-title strong { color: #d84e2f; }
+.route-option-walking .route-option-title strong { color: #2f8f5b; }
+.route-option-cycling .route-option-title strong { color: #8a5a00; }
+
+.route-option-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.route-option-metrics span {
+  padding: 6px;
+  background: #f5f7f8;
+  color: var(--ink);
+  font-size: 12px;
+  text-align: center;
+}
+
+.route-option p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 700px) {
+  .route-advisor-controls,
+  .route-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .route-mode-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .route-recommendation-summary {
+    display: grid;
+  }
+
+  .route-recommendation-summary span {
+    text-align: left;
   }
 }
 .daily-routes-section {

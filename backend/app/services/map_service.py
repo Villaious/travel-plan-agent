@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from functools import lru_cache
 from time import sleep
@@ -53,7 +53,7 @@ class MapService:
                     if attempt < 5:
                         sleep(min(0.2 * attempt, 1.0))
         distance = self._haversine(float(origin["lat"]), float(origin["lng"]), float(destination["lat"]), float(destination["lng"]))
-        speed = {"walking": 4, "driving": 28, "transit": 18}.get(request.route_type, 4)
+        speed = {"walking": 4, "cycling": 13, "driving": 28, "transit": 18}.get(request.route_type, 4)
         return {
             "route_type": request.route_type,
             "source": "local_fallback",

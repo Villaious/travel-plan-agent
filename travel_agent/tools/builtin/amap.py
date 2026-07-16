@@ -8,6 +8,7 @@ from urllib.request import urlopen
 
 from travel_agent.core.config import get_env, get_int_env
 from travel_agent.core.exceptions import ToolError
+from travel_agent.core.rate_limit import amap_web_limiter
 from travel_agent.tools.base import BaseTool
 
 
@@ -20,6 +21,7 @@ class AmapPlaceSearchTool(BaseTool):
     def __init__(self) -> None:
         self.api_key = get_env("AMAP_API_KEY")
         self.timeout = get_int_env("AMAP_TIMEOUT", 10)
+        self.qps = get_int_env("AMAP_SEARCH_QPS", 3)
 
     @property
     def enabled(self) -> bool:
@@ -42,8 +44,9 @@ class AmapPlaceSearchTool(BaseTool):
             params["types"] = kwargs["types"]
         url = f"{self.endpoint}?{urlencode(params)}"
         try:
-            with urlopen(url, timeout=self.timeout) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+            with amap_web_limiter("amap_place_search", self.qps).acquire():
+                with urlopen(url, timeout=self.timeout) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
         except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise ToolError(f"Amap place search failed: {exc}") from exc
         if payload.get("status") != "1":
@@ -100,11 +103,13 @@ class AmapRoutePlanningTool(BaseTool):
         "walking": "https://restapi.amap.com/v3/direction/walking",
         "driving": "https://restapi.amap.com/v3/direction/driving",
         "transit": "https://restapi.amap.com/v3/direction/transit/integrated",
+        "cycling": "https://restapi.amap.com/v5/direction/bicycling",
     }
 
     def __init__(self) -> None:
         self.api_key = get_env("AMAP_API_KEY")
         self.timeout = get_int_env("AMAP_TIMEOUT", 10)
+        self.qps = get_int_env("AMAP_ROUTE_QPS", 3)
 
     @property
     def enabled(self) -> bool:
@@ -127,10 +132,13 @@ class AmapRoutePlanningTool(BaseTool):
         if route_type == "transit":
             params["city"] = kwargs.get("city") or kwargs.get("origin_city") or ""
             params["cityd"] = kwargs.get("destination_city") or params["city"]
+        elif route_type == "cycling":
+            params["show_fields"] = "cost,navi,polyline"
         url = f"{self.endpoints[route_type]}?{urlencode(params)}"
         try:
-            with urlopen(url, timeout=self.timeout) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+            with amap_web_limiter(f"amap_route_{route_type}", self.qps).acquire():
+                with urlopen(url, timeout=self.timeout) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
         except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise ToolError(f"Amap route planning failed: {exc}") from exc
         if payload.get("status") != "1":
@@ -154,7 +162,7 @@ class AmapRoutePlanningTool(BaseTool):
             paths = route.get("paths", [])
             first = paths[0] if paths else {}
             distance = int(float(first.get("distance") or 0))
-            duration = int(float(first.get("duration") or 0))
+            duration = int(float(first.get("duration") or first.get("cost", {}).get("duration") or 0))
             steps = first.get("steps", [])
             instruction = "；".join(step.get("instruction", "") for step in steps[:5] if step.get("instruction"))
             polyline = self._steps_polyline(steps)

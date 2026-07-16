@@ -70,11 +70,17 @@ pip install -r requirements.txt
 ```env
 AMAP_API_KEY=你的高德地图Web服务Key
 AMAP_TIMEOUT=10
+AMAP_WEB_QPS=3
+AMAP_ROUTE_QPS=3
+AMAP_SEARCH_QPS=3
+AMAP_WEATHER_QPS=3
+AMAP_STATIC_MAP_QPS=3
 
 AMAP_JS_API_KEY=你的高德地图Web端JS API Key
 AMAP_JS_SECURITY_CODE=你的高德地图Web端JS安全密钥
 AMAP_JS_EXPOSE_SECURITY=true
 AMAP_JS_SERVICE_HOST=
+AMAP_JS_QPS=10
 
 # Qdrant RAG 景点知识库
 QDRANT_URL=https://your-cluster.qdrant.tech:6333
@@ -110,6 +116,20 @@ TRAVEL_AGENT_USE_LLM=true
 
 高德 Web端 JS API 安全配置参考官方文档：https://lbs.amap.com/api/javascript-api-v2/guide/abc/jscode
 
+## 高德配额与并发限制
+
+项目按照当前高德控制台配额设置共享限流：
+
+| 服务类别 | 月配额 | 应用内上限 |
+| --- | ---: | ---: |
+| 驾车、骑行、步行、公交、距离、地理编码、逆地理编码、坐标转换、行政区、IP、静态地图 | 150,000 次/月 | 每项最多 3 次/秒 |
+| JS 地图图面初始化 | 1,500,000 次/月 | 最多 10 次/秒 |
+| 关键字、周边、多边形、ID、输入提示搜索 | 5,000 次/月 | 每项最多 3 次/秒 |
+| 天气预报 | 5,000 次/月 | 最多 3 次/秒 |
+
+后端对每类高德 Web 服务同时限制“正在执行的请求数”和“一秒内启动的请求数”。即使把环境变量填成大于控制台上限的值，程序也会自动压到 3；前端地图初始化固定压到 10。/api/health 会显示实际生效值。
+
+月调用量仍以高德控制台统计为准。当前限流器在单个 FastAPI 进程内共享；请使用一个 Uvicorn worker 运行。未来若部署多个 worker 或多台服务器，应改用 Redis 分布式限流，才能保证所有进程合计不超限。
 ### SerpApi 景区搜索 Agent
 
 `ScenicSearchAgent` 会调用 SerpApi Google Search API 搜索景区资料，将搜索摘要整合为“景点优点”和“适合人群”，再写入 Qdrant RAG 知识库。SerpApi 官方文档说明 Google Search API 端点为 `https://serpapi.com/search?engine=google`，其中 `q` 是搜索词，`location` 可指定搜索城市。
@@ -163,7 +183,7 @@ http://127.0.0.1:8000/docs
 http://127.0.0.1:8000/api/health
 ```
 
-健康检查会返回高德 Web 服务 Key、Web端 JS Key、安全密钥配置状态、Qdrant 配置状态、LLM Key、LLM 启用状态、当前回退模式、LLM Base URL 和模型名。
+健康检查会返回高德 Web 服务 Key、Web端 JS Key、安全密钥配置状态、Qdrant 配置状态、LLM Key、LLM 启用状态、当前回退模式、各类高德服务的实际 QPS 上限、LLM Base URL 和模型名。
 
 生成行程接口：
 
@@ -179,6 +199,13 @@ POST http://127.0.0.1:8000/api/trip/plan
 GET  http://127.0.0.1:8000/api/poi/search?keywords=博物馆&city=上海
 GET  http://127.0.0.1:8000/api/map/js-config
 POST http://127.0.0.1:8000/api/map/route-summary
+POST http://127.0.0.1:8000/api/route/recommend
+POST http://127.0.0.1:8000/api/map/distance
+GET  http://127.0.0.1:8000/api/map/geocode
+GET  http://127.0.0.1:8000/api/map/reverse-geocode
+POST http://127.0.0.1:8000/api/map/coordinate-convert
+GET  http://127.0.0.1:8000/api/map/district
+GET  http://127.0.0.1:8000/api/map/ip-location
 POST http://127.0.0.1:8000/api/trip/edit
 POST http://127.0.0.1:8000/api/export/pdf
 POST http://127.0.0.1:8000/api/export/image
@@ -237,9 +264,10 @@ python -m pytest -q
 5. `HotelAgent`：根据预算档位推荐酒店，优先调用高德 POI。
 6. `RestaurantAgent`：根据目的地、偏好和预算档位推荐餐厅，并估算餐饮预算。
 7. `PlannerAgent`：整合景点、天气、酒店、餐饮和用户需求，生成完整行程、预算与地图数据；配置 LLM 后会增强总结和建议。
-8. `TopicGuardAgent`：在每个专业 Agent 输出后立即检查主题一致性；检查不通过时终止本次规划。
-9. `TravelMemory`：规划完成后保存本次目的地、偏好和预算档位，为后续推荐提供个性化参考。
-10. `TravelPlannerAgent`：汇总并返回完整计划、`collaboration_trace`、`topic_checks` 与记忆信息。
+8. `RoutePlanningAgent`（按需）：用户选择两个行程地点和候选交通方式后，比较时间、费用、舒适度并推荐最佳方式。
+9. `TopicGuardAgent`：在每个专业 Agent 输出后立即检查主题一致性；检查不通过时终止本次规划。
+10. `TravelMemory`：规划完成后保存本次目的地、偏好和预算档位，为后续推荐提供个性化参考。
+11. `TravelPlannerAgent`：汇总并返回完整计划、`collaboration_trace`、`topic_checks` 与记忆信息。
 
 ## 功能
 
@@ -247,7 +275,8 @@ python -m pytest -q
 - RAG 景点知识库：使用 Qdrant 存储上海、北京景点知识，景点 Agent 可按目的地和偏好检索。
 - 景区搜索 Agent：使用 SerpApi 搜索景区资料，整理景点优点和适合人群，并沉淀回 RAG。
 - 地图可视化：配置高德 Web端 JS API 后显示真实高德地图；除完整行程总览图外，每一天都会生成独立路线图，并在右侧展示当天安排。未配置时使用备用 SVG 地图。
-- 真实路线规划：配置高德 Key 后可调用高德步行、驾车、公交路线 API；无 Key 时自动回退本地估算。
+- 真实路线规划：路线规划 Agent 可在两个行程地点之间比较公共交通、共享单车、步行和驾车，并按综合性价比、最短时间或最低费用推荐；无 Key 时自动回退本地估算。
+- 高德 Web 服务工具：已接入驾车、骑行、步行、公交、距离测量、地理编码、逆地理编码、坐标转换、行政区域查询、IP 定位和静态地图。
 - 预算明细：自动统计门票、酒店、餐饮、交通费用和总价。
 - 餐饮推荐：独立餐饮 Agent 负责餐厅搜索、菜系匹配和餐饮预算估算。
 - 记忆模块：保存用户历史目的地、偏好和预算档位，用于个性化推荐。

@@ -1,6 +1,7 @@
-﻿from .base import BaseTool
+from .base import BaseTool
 from .registry import ToolRegistry
 from .builtin.amap import AmapPlaceSearchTool, AmapRoutePlanningTool
+from .builtin.amap_geo import AmapCoordinateConvertTool, AmapDistanceTool, AmapDistrictTool, AmapGeocodeTool, AmapIPLocationTool, AmapReverseGeocodeTool
 from .builtin.attraction_rag import QdrantAttractionRagTool
 from .builtin.budget import BudgetTool
 from .builtin.destination_data import DestinationDataTool
@@ -15,6 +16,12 @@ __all__ = [
     "ToolRegistry",
     "AmapPlaceSearchTool",
     "AmapRoutePlanningTool",
+    "AmapCoordinateConvertTool",
+    "AmapDistanceTool",
+    "AmapDistrictTool",
+    "AmapGeocodeTool",
+    "AmapIPLocationTool",
+    "AmapReverseGeocodeTool",
     "QdrantAttractionRagTool",
     "BudgetTool",
     "DestinationDataTool",

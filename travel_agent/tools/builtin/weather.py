@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 
 from travel_agent.core.config import get_env, get_int_env
+from travel_agent.core.rate_limit import amap_web_limiter
 from travel_agent.tools.base import BaseTool
 
 
@@ -48,6 +49,7 @@ class WeatherTool(BaseTool):
     def __init__(self) -> None:
         self.api_key = get_env("AMAP_API_KEY")
         self.timeout = get_int_env("AMAP_TIMEOUT", 10)
+        self.qps = get_int_env("AMAP_WEATHER_QPS", 3)
 
     def run(self, **kwargs: Any) -> list[dict[str, Any]]:
         destination = kwargs.get("destination", "上海")
@@ -69,8 +71,9 @@ class WeatherTool(BaseTool):
         }
         url = f"{self.endpoint}?{urlencode(params)}"
         try:
-            with urlopen(url, timeout=self.timeout) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+            with amap_web_limiter("amap_weather", self.qps).acquire():
+                with urlopen(url, timeout=self.timeout) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
         except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
             return []
         if payload.get("status") != "1" or not payload.get("forecasts"):

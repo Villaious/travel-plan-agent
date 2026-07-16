@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from backend.app.main import app
 from travel_agent import TravelPlannerAgent
 from travel_agent.agents.restaurant_agent import RestaurantAgent
+from travel_agent.agents.route_planning_agent import RoutePlanningAgent
 from travel_agent.agents.scenic_search_agent import ScenicSearchAgent
 from travel_agent.agents.topic_guard_agent import TopicGuardAgent
 from travel_agent.core.memory import TravelMemory
@@ -158,6 +159,13 @@ def test_health_returns_config_status():
     assert "rag_mode" in data
     assert "serpapi_configured" in data
     assert "scenic_search_mode" in data
+    assert data["amap_web_qps_limit"] == 3
+    assert data["amap_route_qps_limit"] == 3
+    assert data["amap_search_qps_limit"] == 3
+    assert data["amap_weather_qps_limit"] == 3
+    assert data["amap_static_map_qps_limit"] == 3
+    assert data["amap_js_qps_limit"] == 10
+    assert data["amap_rate_limit_mode"] == "shared_in_process"
     assert data["amap_mode"] in {"api", "local_fallback"}
     assert data["llm_mode"] in {"api", "rule_fallback", "disabled"}
 
@@ -245,6 +253,9 @@ def test_frontend_supports_controlled_destination_and_daily_route_maps():
     assert 'id="itinerary"' in html
     assert "function renderDailyRouteMaps()" in script
     assert "function collectDayMarkers(day)" in script
+    assert 'id="compareRoutes"' in html
+    assert 'value="cycling"' in html
+    assert '/api/route/recommend' in script
 
 def test_destination_catalog_is_grouped_and_rejects_custom_input():
     from pydantic import ValidationError
@@ -268,3 +279,78 @@ def test_destination_catalog_is_grouped_and_rejects_custom_input():
         pass
     else:
         raise AssertionError("自定义目的地应被后端拒绝")
+
+def test_route_planning_agent_compares_modes_with_shared_bike():
+    agent = RoutePlanningAgent()
+    agent.tools.get("amap_route_planning").api_key = ""
+    agent.tools.get("amap_distance").api_key = ""
+
+    result = agent.run(
+        city="广州",
+        origin={"name": "广州塔", "lat": 23.1065, "lng": 113.3246},
+        destination={"name": "陈家祠", "lat": 23.1292, "lng": 113.2437},
+        selected_modes=["transit", "cycling", "walking", "driving"],
+        priority="balanced",
+        people=2,
+    )
+
+    assert len(result["options"]) == 4
+    assert {item["mode"] for item in result["options"]} == {"transit", "cycling", "walking", "driving"}
+    assert result["options"][0]["recommended"] is True
+    cycling = next(item for item in result["options"] if item["mode"] == "cycling")
+    assert cycling["label"] == "共享单车"
+    assert cycling["estimated_cost"] > 0
+    assert cycling["duration_minutes"] > 0
+
+
+def test_route_recommendation_endpoint_returns_ranked_options():
+    from backend.app.services.route_recommendation_service import get_route_recommendation_service
+
+    get_route_recommendation_service().agent.tools.get("amap_route_planning").api_key = ""
+    get_route_recommendation_service().agent.tools.get("amap_distance").api_key = ""
+    client = TestClient(app)
+    response = client.post(
+        "/api/route/recommend",
+        json={
+            "city": "广州",
+            "origin": {"name": "广州塔", "lat": 23.1065, "lng": 113.3246},
+            "destination": {"name": "陈家祠", "lat": 23.1292, "lng": 113.2437},
+            "selected_modes": ["transit", "cycling", "walking", "driving"],
+            "priority": "time",
+            "people": 2,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["agent"] == "路线规划专家"
+    assert data["recommended_mode"] in {"transit", "cycling", "walking", "driving"}
+    assert len(data["options"]) == 4
+    assert data["topic_check"]["on_topic"] is True
+
+def test_amap_geo_tools_normalize_distance_and_geocode(monkeypatch):
+    from travel_agent.tools.builtin.amap_geo import AmapDistanceTool, AmapGeocodeTool
+
+    distance = AmapDistanceTool()
+    monkeypatch.setattr(
+        distance,
+        "_request",
+        lambda params: {"status": "1", "results": [{"origin_id": "1", "dest_id": "1", "distance": "5200", "duration": "900"}]},
+    )
+    measured = distance.run(
+        origins=[{"lat": 23.1065, "lng": 113.3246}],
+        destination={"lat": 23.1292, "lng": 113.2437},
+        distance_type=1,
+    )
+    assert measured[0]["distance_km"] == 5.2
+    assert measured[0]["duration_seconds"] == 900
+
+    geocode = AmapGeocodeTool()
+    monkeypatch.setattr(
+        geocode,
+        "_request",
+        lambda params: {"status": "1", "geocodes": [{"formatted_address": "广州市广州塔", "province": "广东省", "city": "广州市", "district": "海珠区", "adcode": "440105", "location": "113.3246,23.1065", "level": "兴趣点"}]},
+    )
+    result = geocode.run(address="广州塔", city="广州")
+    assert result["lat"] == 23.1065
+    assert result["lng"] == 113.3246

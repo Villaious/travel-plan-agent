@@ -11,6 +11,7 @@ from urllib.request import urlopen
 from backend.app.models.schemas import RouteRequest
 from backend.app.services.map_service import get_map_service
 from travel_agent.core.config import get_env, get_int_env
+from travel_agent.core.rate_limit import amap_web_limiter
 
 
 ROUTE_STYLES = {
@@ -118,8 +119,10 @@ class ExportService:
         url = "https://restapi.amap.com/v3/staticmap?" + urlencode(params)
         try:
             timeout = get_int_env("AMAP_TIMEOUT", 10)
-            with urlopen(url, timeout=timeout) as response:
-                data = response.read()
+            qps = get_int_env("AMAP_STATIC_MAP_QPS", 3)
+            with amap_web_limiter("amap_static_map", qps).acquire():
+                with urlopen(url, timeout=timeout) as response:
+                    data = response.read()
             return "data:image/png;base64," + base64.b64encode(data).decode("ascii")
         except Exception:
             return ""

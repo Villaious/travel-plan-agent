@@ -1,7 +1,8 @@
-﻿from .attraction_search_agent import AttractionSearchAgent
+from .attraction_search_agent import AttractionSearchAgent
 from .hotel_agent import HotelAgent
 from .planner_agent import PlannerAgent
 from .restaurant_agent import RestaurantAgent
+from .route_planning_agent import RoutePlanningAgent
 from .scenic_search_agent import ScenicSearchAgent
 from .topic_guard_agent import TopicGuardAgent
 from .travel_planner_agent import TravelPlannerAgent
@@ -12,6 +13,7 @@ __all__ = [
     "HotelAgent",
     "PlannerAgent",
     "RestaurantAgent",
+    "RoutePlanningAgent",
     "ScenicSearchAgent",
     "TopicGuardAgent",
     "TravelPlannerAgent",

@@ -11,6 +11,9 @@ let destinationGroups = [];
 let destinationNames = [];
 let destinationSelected = "上海市";
 let filteredDestinationNames = [];
+let routeAdvisorPlaces = [];
+let amapJsQpsLimit = 10;
+const amapJsStarts = [];
 
 const form = document.querySelector("#planForm");
 const today = new Date();
@@ -28,6 +31,7 @@ form.addEventListener("submit", async (event) => {
 
 document.querySelector("#exportPdf").addEventListener("click", () => exportBackend("pdf"));
 document.querySelector("#exportPng").addEventListener("click", () => exportBackend("image"));
+document.querySelector("#compareRoutes").addEventListener("click", compareRouteOptions);
 
 function selectedPreferences() {
   return [...document.querySelectorAll(".preferences input:checked")].map((item) => item.value);
@@ -177,6 +181,7 @@ async function loadAmapJs() {
       const response = await fetch("/api/map/js-config");
       const payload = await response.json();
       const config = payload.data || {};
+      amapJsQpsLimit = Math.max(1, Math.min(Number(config.qps_limit) || 10, 10));
       if (!config.enabled || !config.key) return false;
 
       if (config.service_host) {
@@ -196,6 +201,17 @@ async function loadAmapJs() {
   return amapLoadPromise;
 }
 
+async function acquireAmapJsSlot() {
+  while (true) {
+    const now = Date.now();
+    while (amapJsStarts.length && now - amapJsStarts[0] >= 1000) amapJsStarts.shift();
+    if (amapJsStarts.length < amapJsQpsLimit) {
+      amapJsStarts.push(now);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, Math.max(1, 1000 - (now - amapJsStarts[0]))));
+  }
+}
 function appendAmapScript(key) {
   if (window.AMap) return Promise.resolve();
   const existing = document.querySelector("script[data-amap-js]");
@@ -324,6 +340,7 @@ function render() {
   renderMap();
   renderDailyRouteMaps();
   renderCatalog();
+  renderRouteAdvisor();
   renderAgentFlow();
 }
 
@@ -336,6 +353,7 @@ function renderEmptyState() {
   document.querySelector("#agentFlow").innerHTML = `<div class="empty-state">暂无协作记录。提交表单后会显示每个 Agent 的输入、输出和检查结果。</div>`;
   document.querySelector("#itinerary").innerHTML = `<div class="empty-state">暂无行程。请填写旅行条件并点击“生成行程”。</div>`;
   document.querySelector("#catalog").innerHTML = `<div class="empty-state">暂无可添加景点。</div>`;
+  resetRouteAdvisor();
   resetFallbackMap();
   document.querySelector("#routeDistance").textContent = "0 km";
 }
@@ -523,6 +541,123 @@ function renderCatalog() {
   });
 }
 
+function renderRouteAdvisor() {
+  const originSelect = document.querySelector("#routeOrigin");
+  const destinationSelect = document.querySelector("#routeDestination");
+  const compareButton = document.querySelector("#compareRoutes");
+  routeAdvisorPlaces = uniqueByName(collectMarkers());
+  originSelect.innerHTML = "";
+  destinationSelect.innerHTML = "";
+  routeAdvisorPlaces.forEach((place, index) => {
+    const originOption = new Option(place.name, String(index));
+    const destinationOption = new Option(place.name, String(index));
+    originSelect.add(originOption);
+    destinationSelect.add(destinationOption);
+  });
+  const ready = routeAdvisorPlaces.length >= 2;
+  originSelect.disabled = !ready;
+  destinationSelect.disabled = !ready;
+  compareButton.disabled = !ready;
+  if (ready) {
+    originSelect.value = "0";
+    destinationSelect.value = "1";
+  }
+  document.querySelector("#routeAdvisorResult").innerHTML = ready
+    ? `<div class="empty-state">选择起点、终点和交通方式后开始比较。</div>`
+    : `<div class="empty-state">当前行程地点不足，暂时无法比较路线。</div>`;
+}
+
+function resetRouteAdvisor() {
+  routeAdvisorPlaces = [];
+  document.querySelector("#routeOrigin").innerHTML = "";
+  document.querySelector("#routeDestination").innerHTML = "";
+  document.querySelector("#routeOrigin").disabled = true;
+  document.querySelector("#routeDestination").disabled = true;
+  document.querySelector("#compareRoutes").disabled = true;
+  document.querySelector("#routeAdvisorResult").innerHTML = `<div class="empty-state">生成行程后可选择两个地点进行交通方式比较。</div>`;
+}
+
+function selectedRouteModes() {
+  return [...document.querySelectorAll(".route-mode-options input:checked")].map((input) => input.value);
+}
+
+async function compareRouteOptions() {
+  const resultRoot = document.querySelector("#routeAdvisorResult");
+  const button = document.querySelector("#compareRoutes");
+  const origin = routeAdvisorPlaces[Number(document.querySelector("#routeOrigin").value)];
+  const destination = routeAdvisorPlaces[Number(document.querySelector("#routeDestination").value)];
+  const modes = selectedRouteModes();
+  if (!origin || !destination) {
+    showError("请选择有效的起点和终点。");
+    return;
+  }
+  if (origin.name === destination.name) {
+    showError("起点和终点不能相同。");
+    return;
+  }
+  if (!modes.length) {
+    showError("请至少勾选一种交通方式。");
+    return;
+  }
+  clearError();
+  button.disabled = true;
+  button.textContent = "比较中...";
+  resultRoot.innerHTML = `<div class="empty-state">路线规划专家正在比较时间、费用和舒适度...</div>`;
+  try {
+    const response = await fetch("/api/route/recommend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        city: state.destination,
+        origin: { name: origin.name, lat: Number(origin.lat), lng: Number(origin.lng) },
+        destination: { name: destination.name, lat: Number(destination.lat), lng: Number(destination.lng) },
+        selected_modes: modes,
+        priority: document.querySelector("#routePriority").value,
+        people: state.people || 1
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.error?.detail || payload.message || "路线比较失败");
+    }
+    renderRouteRecommendation(payload.data);
+  } catch (error) {
+    resultRoot.innerHTML = `<div class="empty-state">路线比较失败，请稍后重试。</div>`;
+    showError(`路线比较失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = "比较并推荐";
+  }
+}
+
+function renderRouteRecommendation(data) {
+  const root = document.querySelector("#routeAdvisorResult");
+  root.innerHTML = "";
+  const summary = document.createElement("div");
+  summary.className = "route-recommendation-summary";
+  const agent = document.createElement("strong");
+  agent.textContent = `${data.agent}推荐：${data.recommended_label}`;
+  const reason = document.createElement("span");
+  reason.textContent = data.recommendation;
+  summary.append(agent, reason);
+  const options = document.createElement("div");
+  options.className = "route-option-grid";
+  (data.options || []).forEach((option) => {
+    const item = document.createElement("article");
+    item.className = `route-option route-option-${option.mode}${option.recommended ? " recommended" : ""}`;
+    const title = document.createElement("div");
+    title.className = "route-option-title";
+    title.innerHTML = `<strong>${option.label}</strong><span>${option.recommended ? "最佳" : `评分 ${option.score}`}</span>`;
+    const metrics = document.createElement("div");
+    metrics.className = "route-option-metrics";
+    metrics.innerHTML = `<span>${option.duration_minutes} 分钟</span><span>¥${Number(option.estimated_cost).toFixed(2)}</span><span>${Number(option.distance_km).toFixed(1)} km</span>`;
+    const detail = document.createElement("p");
+    detail.textContent = [...(option.pros || []), ...(option.cons || []).map((text) => `注意：${text}`)].join("；");
+    item.append(title, metrics, detail);
+    options.appendChild(item);
+  });
+  root.append(summary, options);
+}
 function renderMap() {
   const markers = collectMarkers();
   renderFallbackMap(markers);
@@ -553,8 +688,10 @@ function renderDailyRouteMaps() {
   });
 }
 
-function renderDailyAmap(dayIndex, markers, distanceElement, token) {
+async function renderDailyAmap(dayIndex, markers, distanceElement, token) {
   if (!window.AMap || !markers.length || token !== dailyMapRenderToken) return;
+  await acquireAmapJsSlot();
+  if (token !== dailyMapRenderToken) return;
   const containerId = `dayMap-${dayIndex}`;
   const container = document.querySelector(`#${containerId}`);
   if (!container) return;
@@ -599,11 +736,12 @@ function clearDailyAmapInstances() {
   });
   dailyAmapInstances.clear();
 }
-function renderAmap(markers) {
+async function renderAmap(markers) {
   if (!window.AMap || !markers.length) return;
   const container = document.querySelector("#map");
   const center = [Number(markers[0].lng), Number(markers[0].lat)];
   if (!amapInstance) {
+    await acquireAmapJsSlot();
     amapInstance = new window.AMap.Map("map", {
       zoom: 12,
       center,
@@ -658,12 +796,14 @@ function routeStyle() {
   const mode = routeTypeFromTransportation();
   if (mode === "driving") return { color: "#d84e2f", label: "驾车" };
   if (mode === "walking") return { color: "#2f8f5b", label: "步行" };
+  if (mode === "cycling") return { color: "#8a5a00", label: "共享单车" };
   return { color: "#2f5fd0", label: "公共交通" };
 }
 function routeTypeFromTransportation() {
   const value = state?.transportation || lastRequest?.transportation || document.querySelector("#transportation")?.value || "公共交通";
   if (/驾车|自驾|开车|打车|出租/.test(value)) return "driving";
   if (/步行|徒步|walk/i.test(value)) return "walking";
+  if (/共享单车|骑行|自行车|bike/i.test(value)) return "cycling";
   return "transit";
 }
 
