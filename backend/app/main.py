@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.app.api.routes import edit, export, health, map as map_routes, poi, trip
+from backend.app.api.routes import destinations, edit, export, health, map as map_routes, poi, trip
 from backend.app.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -35,6 +35,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     app.include_router(health.router, prefix="/api")
+    app.include_router(destinations.router, prefix="/api")
     app.include_router(trip.router, prefix="/api")
     app.include_router(poi.router, prefix="/api")
     app.include_router(map_routes.router, prefix="/api")

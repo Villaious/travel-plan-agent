@@ -1,4 +1,4 @@
-﻿from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient
 
 from backend.app.main import app
 from travel_agent import TravelPlannerAgent
@@ -220,3 +220,51 @@ def test_qdrant_rag_tool_disabled_without_config(monkeypatch):
 
 
 
+
+
+def test_destination_fallback_uses_requested_china_region_center():
+    from travel_agent.tools.builtin.destination_data import DestinationDataTool
+
+    data = DestinationDataTool().run(destination="广州市")
+
+    assert data["center"] == [23.1291, 113.2644]
+    assert data["unknown_destination"] == "广州市"
+    assert all(item.get("source") == "local_fallback" for item in data["spots"])
+    assert all("上海" not in item["name"] for item in data["spots"])
+
+
+def test_frontend_supports_controlled_destination_and_daily_route_maps():
+    from pathlib import Path
+
+    html = Path("app/index.html").read_text(encoding="utf-8")
+    script = Path("app/script.js").read_text(encoding="utf-8")
+
+    assert 'id="destination"' in html
+    assert 'id="destinationPicker"' in html
+    assert 'id="destinationGrid"' in html
+    assert 'id="itinerary"' in html
+    assert "function renderDailyRouteMaps()" in script
+    assert "function collectDayMarkers(day)" in script
+
+def test_destination_catalog_is_grouped_and_rejects_custom_input():
+    from pydantic import ValidationError
+
+    from backend.app.models.schemas import TripPlanRequest
+
+    client = TestClient(app)
+    response = client.get("/api/destinations")
+    groups = response.json()["data"]
+
+    assert response.status_code == 200
+    provinces = [group["province"] for group in groups]
+    assert provinces[:5] == ["安徽省", "北京市", "重庆市", "福建省", "甘肃省"]
+    assert provinces[-3:] == ["台湾地区", "香港特别行政区", "澳门特别行政区"]
+    assert "广州市" in next(group["cities"] for group in groups if group["province"] == "广东省")
+    assert TripPlanRequest(destination="广州市", start_date="2026-08-01").destination == "广州"
+
+    try:
+        TripPlanRequest(destination="自定义地点", start_date="2026-08-01")
+    except ValidationError:
+        pass
+    else:
+        raise AssertionError("自定义目的地应被后端拒绝")

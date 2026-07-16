@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any
 
@@ -41,6 +41,7 @@ class PlannerAgent(Agent):
             "hotels": selected_hotels,
             "restaurants": selected_restaurants,
         }
+        planner_data["center"] = self._content_center(planner_data, base_data["center"])
         itinerary = self.tools.get("itinerary").run(
             data=planner_data,
             destination=destination,
@@ -59,6 +60,19 @@ class PlannerAgent(Agent):
         result = {**export_payload, "summary": itinerary["summary"], "transportation": request.get("transportation", "公共交通")}
         self.remember_answer(result["summary"])
         return result
+
+    def _content_center(self, data: dict[str, Any], fallback: list[float]) -> list[float]:
+        points = []
+        for group in ("spots", "hotels", "restaurants"):
+            for item in data.get(group, []):
+                if item.get("lat") and item.get("lng"):
+                    points.append((float(item["lat"]), float(item["lng"])))
+        if not points:
+            return fallback
+        return [
+            round(sum(point[0] for point in points) / len(points), 6),
+            round(sum(point[1] for point in points) / len(points), 6),
+        ]
 
     def _build_planner_query(
         self,

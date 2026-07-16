@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
@@ -21,24 +21,41 @@
         </header>
 
         <form id="planForm" class="controls">
-          <label>
-            目的地
-            <select id="destination">
-              <option>上海</option>
-              <option>北京</option>
-            </select>
-          </label>
+          <div class="destination-control">
+            <label for="destination">目的地</label>
+            <div class="destination-combobox">
+              <input
+                id="destination"
+                value="上海市"
+                placeholder="输入省份或城市前几位并从提示中选择"
+                autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="destinationPicker"
+                required
+              />
+              <div id="destinationPicker" class="destination-picker" role="listbox" hidden>
+                <div class="destination-picker-head">
+                  <strong>按省份选择城市</strong>
+                  <span id="destinationCount">正在读取...</span>
+                </div>
+                <div id="destinationGrid" class="destination-grid"></div>
+                <div id="destinationNoResult" class="destination-no-result" hidden>没有匹配城市，请输入城市名称前几位。</div>
+              </div>
+            </div>
+          </div>
           <label>
             出发日期
             <input id="startDate" type="date" required />
           </label>
           <label>
             天数
-            <input id="days" type="number" min="1" max="5" value="2" />
+            <input id="days" type="number" min="1" max="7" value="2" />
           </label>
           <label>
             人数
-            <input id="people" type="number" min="1" max="8" value="2" />
+            <input id="people" type="number" min="1" max="20" value="2" />
           </label>
           <label>
             预算档位
@@ -84,7 +101,6 @@
 
         <section class="agent-flow" aria-label="多Agent协作"><h2>多Agent协作</h2><div id="agentFlow"></div></section>
 
-        <section id="itinerary" class="itinerary" aria-label="行程编辑"></section>
       </section>
 
       <section class="map-panel">
@@ -99,6 +115,16 @@
         </section>
       </section>
     </main>
+
+    <section class="daily-routes-section" aria-labelledby="dailyRoutesTitle">
+      <div class="daily-routes-head">
+        <div>
+          <h2 id="dailyRoutesTitle">每日路线与行程</h2>
+          <p>每一天单独显示路线，右侧可调整当天的游览顺序。</p>
+        </div>
+      </div>
+      <section id="itinerary" class="itinerary" aria-label="每日路线与行程编辑"></section>
+    </section>
 
     <script src="/app/script.js"></script>
   </body>

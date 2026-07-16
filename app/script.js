@@ -1,10 +1,16 @@
-﻿let state = null;
+let state = null;
 let lastRequest = null;
 let amapInstance = null;
 let amapLoadPromise = null;
 let amapAvailable = false;
 let amapRouteRenderToken = 0;
 let amapRoutePlanners = [];
+let dailyAmapInstances = new Map();
+let dailyMapRenderToken = 0;
+let destinationGroups = [];
+let destinationNames = [];
+let destinationSelected = "上海市";
+let filteredDestinationNames = [];
 
 const form = document.querySelector("#planForm");
 const today = new Date();
@@ -12,6 +18,11 @@ document.querySelector("#startDate").valueAsDate = new Date(today.getFullYear(),
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!validateDestinationSelection()) {
+    document.querySelector("#destination").reportValidity();
+    openDestinationPicker();
+    return;
+  }
   await requestPlan();
 });
 
@@ -24,7 +35,7 @@ function selectedPreferences() {
 
 function buildRequest() {
   return {
-    destination: document.querySelector("#destination").value,
+    destination: destinationSelected,
     start_date: document.querySelector("#startDate").value,
     days: Number(document.querySelector("#days").value),
     people: Number(document.querySelector("#people").value),
@@ -34,6 +45,118 @@ function buildRequest() {
   };
 }
 
+async function initializeDestinationPicker() {
+  const input = document.querySelector("#destination");
+  input.disabled = true;
+  try {
+    const response = await fetch("/api/destinations");
+    const payload = await response.json();
+    if (!response.ok || payload.success === false || !Array.isArray(payload.data)) {
+      throw new Error(payload.message || "目的地目录读取失败");
+    }
+    destinationGroups = payload.data;
+    destinationNames = destinationGroups.flatMap((group) => group.cities || []);
+    destinationSelected = destinationNames.includes(input.value) ? input.value : (destinationNames[0] || "");
+    input.value = destinationSelected;
+    renderDestinationOptions("");
+    input.disabled = false;
+  } catch (error) {
+    input.setCustomValidity("目的地目录加载失败，请刷新页面后重试");
+    showError(`目的地目录加载失败：${error.message}`);
+  }
+
+  input.addEventListener("focus", () => {
+    renderDestinationOptions("");
+    openDestinationPicker();
+  });
+  input.addEventListener("input", () => {
+    destinationSelected = "";
+    input.setCustomValidity("");
+    renderDestinationOptions(input.value.trim());
+    openDestinationPicker();
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeDestinationPicker();
+      return;
+    }
+    if (event.key === "Enter" && !destinationSelected && filteredDestinationNames.length === 1) {
+      event.preventDefault();
+      selectDestination(filteredDestinationNames[0]);
+    }
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".destination-control")) closeDestinationPicker();
+  });
+}
+
+function renderDestinationOptions(query) {
+  const grid = document.querySelector("#destinationGrid");
+  const count = document.querySelector("#destinationCount");
+  const noResult = document.querySelector("#destinationNoResult");
+  const normalizedQuery = String(query || "").trim();
+  grid.innerHTML = "";
+  filteredDestinationNames = [];
+
+  destinationGroups.forEach((group) => {
+    const provinceMatched = matchesProvincePrefix(group.province, normalizedQuery);
+    const cities = (group.cities || []).filter((city) => !normalizedQuery || provinceMatched || city.startsWith(normalizedQuery));
+    if (!cities.length) return;
+    filteredDestinationNames.push(...cities);
+    const province = document.createElement("section");
+    province.className = "destination-province";
+    const heading = document.createElement("h3");
+    heading.textContent = group.province;
+    const cityGrid = document.createElement("div");
+    cityGrid.className = "destination-city-grid";
+    cities.forEach((city) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", city === destinationSelected ? "true" : "false");
+      button.textContent = city;
+      button.addEventListener("click", () => selectDestination(city));
+      cityGrid.appendChild(button);
+    });
+    province.append(heading, cityGrid);
+    grid.appendChild(province);
+  });
+  count.textContent = `${filteredDestinationNames.length} 个城市`;
+  noResult.hidden = filteredDestinationNames.length > 0;
+}
+
+function matchesProvincePrefix(province, query) {
+  if (!query) return true;
+  const shortName = String(province || "").replace(/特别行政区|维吾尔自治区|壮族自治区|回族自治区|自治区|省$/u, "");
+  return String(province || "").startsWith(query) || shortName.startsWith(query);
+}
+function selectDestination(city) {
+  if (!destinationNames.includes(city)) return;
+  const input = document.querySelector("#destination");
+  destinationSelected = city;
+  input.value = city;
+  input.setCustomValidity("");
+  closeDestinationPicker();
+}
+
+function validateDestinationSelection() {
+  const input = document.querySelector("#destination");
+  const valid = Boolean(destinationSelected && destinationNames.includes(destinationSelected) && input.value === destinationSelected);
+  input.setCustomValidity(valid ? "" : "请从省份城市列表或输入提示中选择目的地");
+  return valid;
+}
+
+function openDestinationPicker() {
+  const picker = document.querySelector("#destinationPicker");
+  picker.hidden = false;
+  document.querySelector("#destination").setAttribute("aria-expanded", "true");
+}
+
+function closeDestinationPicker() {
+  const picker = document.querySelector("#destinationPicker");
+  picker.hidden = true;
+  document.querySelector("#destination").setAttribute("aria-expanded", "false");
+}
 async function loadConfigStatus() {
   const root = document.querySelector("#configStatus");
   try {
@@ -199,6 +322,7 @@ function render() {
   renderBudget();
   renderItinerary();
   renderMap();
+  renderDailyRouteMaps();
   renderCatalog();
   renderAgentFlow();
 }
@@ -270,13 +394,27 @@ function money(value) {
 
 function renderItinerary() {
   const root = document.querySelector("#itinerary");
+  clearDailyAmapInstances();
   root.innerHTML = "";
   if (!state.days.length) {
     root.innerHTML = `<div class="empty-state">后端没有返回每日行程。</div>`;
     return;
   }
   state.days.forEach((day, dayIndex) => {
-    const section = document.createElement("article");
+    const routeView = document.createElement("article");
+    routeView.className = "daily-route-view";
+    routeView.innerHTML = `
+      <section class="daily-map-block" aria-label="第 ${day.day} 天路线图">
+        <div class="daily-map-head">
+          <strong>第 ${day.day} 天路线图</strong>
+          <span id="dayRouteDistance-${dayIndex}">0 km</span>
+        </div>
+        <div id="dayMap-${dayIndex}" class="daily-map-canvas map-canvas">
+          <svg id="dayFallbackMap-${dayIndex}" class="daily-fallback-map" viewBox="0 0 720 520"></svg>
+        </div>
+      </section>`;
+
+    const section = document.createElement("section");
     section.className = "day";
     const hotelName = day.hotel?.name || "待定酒店";
     const hotelPrice = day.hotel?.price || 0;
@@ -301,7 +439,8 @@ function renderItinerary() {
       remove.addEventListener("click", () => removeStop(dayIndex, stopIndex));
       section.appendChild(row);
     });
-    root.appendChild(section);
+    routeView.appendChild(section);
+    root.appendChild(routeView);
   });
 }
 
@@ -395,6 +534,71 @@ function renderMap() {
   });
 }
 
+function renderDailyRouteMaps() {
+  if (!state?.days?.length) return;
+  const token = ++dailyMapRenderToken;
+  state.days.forEach((day, dayIndex) => {
+    const markers = collectDayMarkers(day);
+    const svg = document.querySelector(`#dayFallbackMap-${dayIndex}`);
+    const distanceElement = document.querySelector(`#dayRouteDistance-${dayIndex}`);
+    if (!svg) return;
+    renderFallbackMapContent(svg, markers, `dayRouteArrow-${dayIndex}`);
+    if (distanceElement) distanceElement.textContent = `${calculateDistance(markers).toFixed(1)} km`;
+    if (!markers.length) return;
+    loadAmapJs().then((ready) => {
+      if (ready && token === dailyMapRenderToken) {
+        renderDailyAmap(dayIndex, markers, distanceElement, token);
+      }
+    });
+  });
+}
+
+function renderDailyAmap(dayIndex, markers, distanceElement, token) {
+  if (!window.AMap || !markers.length || token !== dailyMapRenderToken) return;
+  const containerId = `dayMap-${dayIndex}`;
+  const container = document.querySelector(`#${containerId}`);
+  if (!container) return;
+  const map = new window.AMap.Map(containerId, {
+    zoom: 12,
+    center: [Number(markers[0].lng), Number(markers[0].lat)],
+    viewMode: "2D"
+  });
+  dailyAmapInstances.set(dayIndex, map);
+  markers.forEach((marker, index) => {
+    map.add(new window.AMap.Marker({
+      position: [Number(marker.lng), Number(marker.lat)],
+      title: marker.name,
+      label: { direction: "right", content: `${index + 1}. ${marker.name}` }
+    }));
+  });
+  container.classList.add("amap-ready");
+  renderDailyRoadRoute(map, markers, distanceElement, token);
+}
+
+async function renderDailyRoadRoute(map, markers, distanceElement, token) {
+  const straightPath = markers.map((marker) => [Number(marker.lng), Number(marker.lat)]);
+  if (straightPath.length < 2) {
+    map.setFitView(null, false, [42, 42, 42, 42]);
+    return;
+  }
+  try {
+    const summary = await fetchRouteSummary(markers, distanceElement);
+    if (token !== dailyMapRenderToken) return;
+    const routePath = Array.isArray(summary?.polyline) && summary.polyline.length > 1 ? summary.polyline : straightPath;
+    drawAmapRoute(map, routePath);
+  } catch (error) {
+    if (token === dailyMapRenderToken) drawAmapRoute(map, straightPath);
+  }
+  if (token === dailyMapRenderToken) map.setFitView(null, false, [42, 42, 42, 42]);
+}
+
+function clearDailyAmapInstances() {
+  dailyMapRenderToken += 1;
+  dailyAmapInstances.forEach((map) => {
+    if (typeof map.destroy === "function") map.destroy();
+  });
+  dailyAmapInstances.clear();
+}
 function renderAmap(markers) {
   if (!window.AMap || !markers.length) return;
   const container = document.querySelector("#map");
@@ -463,7 +667,7 @@ function routeTypeFromTransportation() {
   return "transit";
 }
 
-async function fetchRouteSummary(markers) {
+async function fetchRouteSummary(markers, distanceElement = document.querySelector("#routeDistance")) {
   const requestBody = {
     route_type: routeTypeFromTransportation(),
     city: state?.destination || lastRequest?.destination || document.querySelector("#destination")?.value || "",
@@ -482,7 +686,7 @@ async function fetchRouteSummary(markers) {
         throw new Error(payload.error?.detail || payload.message || "路线规划失败");
       }
       if (payload.data?.distance_km) {
-        document.querySelector("#routeDistance").textContent = `${Number(payload.data.distance_km).toFixed(1)} km`;
+        if (distanceElement) distanceElement.textContent = `${Number(payload.data.distance_km).toFixed(1)} km`;
       }
       return payload.data;
     } catch (error) {
@@ -497,6 +701,10 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function drawStraightAmapRoute(path) {
+  drawAmapRoute(amapInstance, path);
+}
+
+function drawAmapRoute(map, path) {
   const style = routeStyle();
   const casing = new window.AMap.Polyline({
     path,
@@ -518,7 +726,7 @@ function drawStraightAmapRoute(path) {
     dirColor: style.color,
     zIndex: 50
   });
-  amapInstance.add([casing, polyline]);
+  map.add([casing, polyline]);
 }
 function clearAmapRoutePlanners() {
   amapRoutePlanners.forEach((planner) => {
@@ -568,10 +776,45 @@ function renderFallbackMap(markers) {
 }
 
 
-function appendSvgArrowDef(svg, color) {
+function renderFallbackMapContent(svg, markers, arrowId) {
+  svg.innerHTML = "";
+  if (!markers.length) return;
+  const points = markers.map((marker) => project(marker, markers));
+  const style = routeStyle();
+  appendSvgArrowDef(svg, style.color, arrowId);
+  const casing = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  casing.setAttribute("class", "route-casing");
+  casing.setAttribute("points", points.map((point) => point.join(",")).join(" "));
+  svg.appendChild(casing);
+  const route = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  route.setAttribute("class", "route");
+  route.setAttribute("stroke", style.color);
+  route.setAttribute("marker-end", `url(#${arrowId})`);
+  route.setAttribute("points", points.map((point) => point.join(",")).join(" "));
+  svg.appendChild(route);
+  appendRouteDirectionHints(svg, points, style.color);
+  markers.forEach((marker, index) => {
+    const [x, y] = points[index];
+    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    group.setAttribute("class", "marker");
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("class", "pin");
+    circle.setAttribute("cx", x);
+    circle.setAttribute("cy", y);
+    circle.setAttribute("r", marker.category === "hotel" ? 12 : 10);
+    circle.setAttribute("fill", colorFor(marker.category));
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", x + 14);
+    text.setAttribute("y", y + 5);
+    text.textContent = marker.name;
+    group.append(circle, text);
+    svg.appendChild(group);
+  });
+}
+function appendSvgArrowDef(svg, color, markerId = "routeArrow") {
   const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
   const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
-  marker.setAttribute("id", "routeArrow");
+  marker.setAttribute("id", markerId);
   marker.setAttribute("markerWidth", "8");
   marker.setAttribute("markerHeight", "8");
   marker.setAttribute("refX", "7");
@@ -617,11 +860,17 @@ function resetFallbackMap() {
   if (amapInstance) {
     amapInstance.clearMap();
   }
+  clearDailyAmapInstances();
   const container = document.querySelector("#map");
   container.classList.remove("amap-ready");
   ensureFallbackMap().innerHTML = "";
 }
 
+function collectDayMarkers(day) {
+  if (!day) return [];
+  return [{ ...(day.hotel || {}), category: "hotel" }, ...(day.stops || [])]
+    .filter((item) => Number(item.lat) && Number(item.lng));
+}
 function collectMarkers() {
   if (!state) return [];
   return state.days.flatMap((day) => [{ ...(day.hotel || {}), category: "hotel" }, ...(day.stops || [])])
@@ -689,6 +938,7 @@ function exportMapPng() {
   image.src = url;
 }
 
+initializeDestinationPicker();
 loadConfigStatus();
 loadAmapJs();
 renderEmptyState();

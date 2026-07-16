@@ -47,15 +47,78 @@ DESTINATIONS: dict[str, dict[str, Any]] = {
     },
 }
 
+CHINA_REGION_CENTERS: dict[str, list[float]] = {
+    "北京": [39.9042, 116.4074], "天津": [39.0842, 117.2009], "上海": [31.2304, 121.4737], "重庆": [29.5630, 106.5516],
+    "河北": [38.0428, 114.5149], "石家庄": [38.0428, 114.5149], "山西": [37.8706, 112.5489], "太原": [37.8706, 112.5489],
+    "内蒙古": [40.8426, 111.7492], "呼和浩特": [40.8426, 111.7492], "辽宁": [41.8057, 123.4315], "沈阳": [41.8057, 123.4315],
+    "吉林": [43.8171, 125.3235], "长春": [43.8171, 125.3235], "黑龙江": [45.8038, 126.5349], "哈尔滨": [45.8038, 126.5349],
+    "江苏": [32.0603, 118.7969], "南京": [32.0603, 118.7969], "浙江": [30.2741, 120.1551], "杭州": [30.2741, 120.1551],
+    "安徽": [31.8206, 117.2272], "合肥": [31.8206, 117.2272], "福建": [26.0745, 119.2965], "福州": [26.0745, 119.2965],
+    "江西": [28.6820, 115.8579], "南昌": [28.6820, 115.8579], "山东": [36.6512, 117.1201], "济南": [36.6512, 117.1201],
+    "河南": [34.7466, 113.6254], "郑州": [34.7466, 113.6254], "湖北": [30.5928, 114.3055], "武汉": [30.5928, 114.3055],
+    "湖南": [28.2282, 112.9388], "长沙": [28.2282, 112.9388], "广东": [23.1291, 113.2644], "广州": [23.1291, 113.2644],
+    "广西": [22.8170, 108.3669], "南宁": [22.8170, 108.3669], "海南": [20.0440, 110.1999], "海口": [20.0440, 110.1999],
+    "四川": [30.5728, 104.0668], "成都": [30.5728, 104.0668], "贵州": [26.6470, 106.6302], "贵阳": [26.6470, 106.6302],
+    "云南": [25.0389, 102.7183], "昆明": [25.0389, 102.7183], "西藏": [29.6520, 91.1721], "拉萨": [29.6520, 91.1721],
+    "陕西": [34.3416, 108.9398], "西安": [34.3416, 108.9398], "甘肃": [36.0611, 103.8343], "兰州": [36.0611, 103.8343],
+    "青海": [36.6171, 101.7782], "西宁": [36.6171, 101.7782], "宁夏": [38.4872, 106.2309], "银川": [38.4872, 106.2309],
+    "新疆": [43.8256, 87.6168], "乌鲁木齐": [43.8256, 87.6168], "香港": [22.3193, 114.1694], "澳门": [22.1987, 113.5439],
+    "台湾": [25.0330, 121.5654], "台北": [25.0330, 121.5654], "深圳": [22.5431, 114.0579], "苏州": [31.2989, 120.5853],
+    "厦门": [24.4798, 118.0894], "三亚": [18.2528, 109.5119], "青岛": [36.0671, 120.3826], "大连": [38.9140, 121.6147],
+}
+
 
 class DestinationDataTool(BaseTool):
     name = "destination_data"
     description = "Load local destination spots, restaurants, hotels and map center."
 
     def run(self, **kwargs: Any) -> dict[str, Any]:
-        destination = kwargs.get("destination", "上海")
-        if destination in DESTINATIONS:
-            return DESTINATIONS[destination]
-        fallback = DESTINATIONS["上海"].copy()
-        fallback["unknown_destination"] = destination
-        return fallback
+        destination = str(kwargs.get("destination", "上海")).strip() or "上海"
+        normalized = self._normalize_destination(destination)
+        if normalized in DESTINATIONS:
+            return DESTINATIONS[normalized]
+        return self._generic_destination(destination, self._center_for(normalized))
+
+    def _normalize_destination(self, destination: str) -> str:
+        for suffix in ("特别行政区", "维吾尔自治区", "壮族自治区", "回族自治区", "自治区", "省", "市"):
+            if destination.endswith(suffix):
+                return destination[: -len(suffix)]
+        return destination
+
+    def _center_for(self, destination: str) -> list[float]:
+        return CHINA_REGION_CENTERS.get(destination, [35.8617, 104.1954])
+
+    def _generic_destination(self, destination: str, center: list[float]) -> dict[str, Any]:
+        lat, lng = center
+        return {
+            "center": center,
+            "spots": [
+                self._fallback_place(destination, "城市代表景区", lat + 0.012, lng + 0.008, "城市漫步", ["城市漫步", "摄影"]),
+                self._fallback_place(destination, "历史文化场馆", lat - 0.006, lng + 0.014, "文化", ["文化", "历史"]),
+                self._fallback_place(destination, "城市公园", lat + 0.004, lng - 0.015, "自然", ["自然", "公园"]),
+                self._fallback_place(destination, "特色街区", lat - 0.014, lng - 0.006, "美食", ["美食", "城市漫步"]),
+            ],
+            "restaurants": [
+                {"name": f"{destination}地方菜餐厅（待在线检索）", "lat": lat + 0.003, "lng": lng + 0.004, "price": 90, "tags": ["美食", "地方菜"], "source": "local_fallback"},
+                {"name": f"{destination}特色小吃（待在线检索）", "lat": lat - 0.004, "lng": lng - 0.003, "price": 45, "tags": ["美食", "小吃"], "source": "local_fallback"},
+            ],
+            "hotels": [
+                {"name": f"{destination}市中心酒店（待在线检索）", "lat": lat, "lng": lng, "price": 520, "level": "舒适", "source": "local_fallback"},
+                {"name": f"{destination}经济酒店（待在线检索）", "lat": lat + 0.006, "lng": lng - 0.005, "price": 320, "level": "经济", "source": "local_fallback"},
+                {"name": f"{destination}品质酒店（待在线检索）", "lat": lat - 0.005, "lng": lng + 0.006, "price": 900, "level": "品质", "source": "local_fallback"},
+            ],
+            "unknown_destination": destination,
+        }
+
+    def _fallback_place(self, destination: str, label: str, lat: float, lng: float, place_type: str, tags: list[str]) -> dict[str, Any]:
+        return {
+            "name": f"{destination}{label}（待在线检索）",
+            "type": place_type,
+            "lat": lat,
+            "lng": lng,
+            "ticket": 0,
+            "duration": 90,
+            "tags": tags,
+            "reason": "高德服务不可用时生成的地区级回退点位，请联网后核实具体地点。",
+            "source": "local_fallback",
+        }

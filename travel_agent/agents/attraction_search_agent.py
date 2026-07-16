@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any
 
@@ -17,12 +17,13 @@ class AttractionSearchAgent(Agent):
         )
         self.add_tool(DestinationDataTool())
         self.add_tool(AmapPlaceSearchTool())
+        self.add_tool(QdrantAttractionRagTool())
 
     def run(self, destination: str, preferences: list[str] | None = None, limit: int = 8) -> dict[str, Any]:
         preferences = preferences or []
         self.remember_user_input(f"搜索{destination}景点，偏好={preferences}")
-        spots = self._search_amap(destination, preferences, limit) or self._search_local(destination, preferences, limit)
-        source = "amap" if spots and spots[0].get("source") == "amap" else "local"
+        spots = self._search_rag(destination, preferences, limit) or self._search_amap(destination, preferences, limit) or self._search_local(destination, preferences, limit)
+        source = spots[0].get("source", "local") if spots else "local"
         result = {
             "agent": self.name,
             "destination": destination,

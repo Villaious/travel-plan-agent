@@ -1,9 +1,11 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import date
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from travel_agent.data import normalize_china_destination
 
 
 BudgetLevel = Literal["经济", "舒适", "品质"]
@@ -34,8 +36,18 @@ class ExportRequest(BaseModel):
     plan: dict[str, Any] = Field(..., description="行程计划")
 
 
+class DestinationGroupModel(BaseModel):
+    province: str = Field(..., description="省级地区名称")
+    cities: list[str] = Field(default_factory=list, description="该地区允许选择的城市")
+
+
 class TripPlanRequest(BaseModel):
-    destination: str = Field(..., min_length=1, description="目的地城市", examples=["上海"])
+    destination: str = Field(..., min_length=1, description="目的地城市", examples=["上海市"])
+
+    @field_validator("destination")
+    @classmethod
+    def validate_destination(cls, value: str) -> str:
+        return normalize_china_destination(value)
     start_date: date = Field(..., description="出发日期", examples=["2026-08-01"])
     days: int = Field(default=2, ge=1, le=7, description="旅行天数")
     preferences: list[str] = Field(default_factory=list, description="旅行偏好")
